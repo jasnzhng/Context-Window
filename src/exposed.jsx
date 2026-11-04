@@ -4,7 +4,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useLocation } from "react-router-dom";
 import { getStream, onCamera } from "./camera.js";
-import { getPresence, onPresence } from "./presence.js";
+import { getBlinks, getPresence, onBlink, onPresence } from "./presence.js";
 import { absence } from "./away.js";
 import { loadVisit } from "./visit.js";
 
@@ -131,8 +131,19 @@ function faceLine(presence, stream, visit) {
   if (!stream) return "camera off";
   if (!presence.ready || presence.faces === null) return "looking...";
   if (presence.faces > 1) return `${presence.faces} faces. who is that?`;
-  if (presence.faces === 1) return "you, watching";
+  if (presence.faces === 1) {
+    return presence.looking ? "you, watching" : "you, looking away";
+  }
   return `gone ${duration(Date.now() - presence.awaySince)}`;
+}
+
+// How many times, how often in the last minute, and how long since the last.
+function blinkLine(blinks, presence, now) {
+  if (!presence.ready || presence.faces === null) return null;
+  if (!blinks.count) return "not yet";
+  const rate = blinks.recent.filter((t) => now - t < 60 * 1000).length;
+  const since = ((now - blinks.last) / 1000).toFixed(1);
+  return `${blinks.count} · ${rate}/min · last ${since}s ago`;
 }
 
 export default function Exposed() {
@@ -141,6 +152,7 @@ export default function Exposed() {
   const [cursor, setCursor] = useState(null);
   const stream = useSyncExternalStore(onCamera, getStream);
   const presence = useSyncExternalStore(onPresence, getPresence);
+  const blinks = useSyncExternalStore(onBlink, getBlinks);
   useLocation(); // re-render on every page, to re-read the visit
   const visit = loadVisit();
 
@@ -220,6 +232,7 @@ export default function Exposed() {
     ],
     ["address", where?.place?.display],
     ["face", faceLine(presence, stream, visit)],
+    ["blinks", stream && blinkLine(blinks, presence, now)],
     [
       "left us",
       absence.leaves ? `${absence.leaves}× for ${duration(away)}` : null,

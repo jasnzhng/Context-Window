@@ -310,12 +310,30 @@ forgets the visitor, the browser doesn't.
 - **The panel** (`exposed.jsx`, on every page). IP (`GET /api/whoami`), OS and
   browser from client hints, GPU, screen, cores, memory, battery, network,
   time zone, languages, devices, permission states, cursor, location, face,
-  how often the visitor left the tab, and what they showed from the clipboard.
-- **Presence** (`presence.js`). MediaPipe's face detector runs on the webcam
-  2.5 times a second, loaded from jsDelivr when the camera first comes on.
+  blinks (count, per minute, seconds since the last), how often the visitor
+  left the tab, and what they showed from the clipboard.
+- **Presence** (`presence.js`). MediaPipe's face landmarker runs on the
+  webcam about 15 times a second, loaded from jsDelivr when the camera first
+  comes on. It has to be that fast to land inside a blink; the face count and
+  brackets are only published every 400 ms (or at once when they change).
   Away 10 s: "where did you go?". Two faces: "who is that with you?", once.
   Away 60 s: the camera turns off and the house forgets their face for the
   rest of the visit. The check-in window brackets every face it finds.
+- **Blinks.** The eyes count as shut when MediaPipe's `eyeBlinkLeft`/`Right`
+  blendshapes average over 0.5, and open again under 0.3. Each blink,
+  `glitch.js` swaps about 4% of the page's visible characters (at least 6)
+  for random ones for 420 ms, long enough to still be there when the eyes
+  open. React owns that text, so a character is only put back if its node
+  still holds the swapped text; if React rewrote it meanwhile (the
+  typewriter does every 20 ms), React's text wins. Off for
+  `prefers-reduced-motion`; the panel still counts.
+- **Not looking** (`uninterested.jsx`). No face, the head turned away (the
+  nose tip too far from the middle of the face, side to side or up and
+  down), or eyes shut, for 1.5 s: the whole page becomes giant text, "are you
+  not interested?", over everything including a check-in. It goes the moment
+  they look back. It's a fixed overlay, not the Fullscreen API, which only
+  opens on a click or key press. The thresholds (`YAW`, `PITCH`,
+  `LOOK_AWAY_MS`) are at the top of `presence.js`.
 - **Clipboard.** The first check-in asks "what are you holding?"; whatever
   they paste in becomes an object in the next room. After that, every
   `[go further]` leaves a worn copy of the chosen object on the clipboard,

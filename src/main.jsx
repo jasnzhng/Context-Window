@@ -14,12 +14,15 @@ import { startCamera } from "./camera.js";
 import { startPresence } from "./presence.js";
 import { startAway } from "./away.js";
 import { forget } from "./decay.js";
+import { startGlitch } from "./glitch.js";
 import Exposed from "./exposed";
+import Uninterested from "./uninterested";
 
 // A reload drops the webcam stream; turn it back on if the visitor said yes.
 if (loadVisit()?.peek) startCamera();
 startPresence();
 startAway();
+startGlitch();
 
 // Anything copied off the page comes out a little more forgotten than it
 // looked, as worn as the last room the visitor saw.
@@ -43,6 +46,7 @@ mountroot.render(
         <Route path="/room/:n" element={<RoomRoute></RoomRoute>}></Route>
       </Routes>
       <Exposed></Exposed>
+      <Uninterested></Uninterested>
     </BrowserRouter>
   </StrictMode>,
 );
