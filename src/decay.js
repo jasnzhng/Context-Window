@@ -1,20 +1,41 @@
-// templates for rooms, objects, etc that get decayed
-import config from "../config.json";
+// Everything that decays: the filenames, the floor plan, and the visitor's
+// answer. A room is decayed once, when it arrives, and then saved, so going
+// back shows the same room. `p` is the room's decay (0 -> 1) from the server.
+import { PLANS } from "./plans.js";
 
 const SWAP = { png: "jpg", jpg: "png" };
 const MARKER = /\{(\d)\}/g;
-const DUST = [".", ":", "'", "`", ",", "~"];
-const WIDTH = 60; // matches the drawing width in server.js
+const DUST = [...".:',~"];
+const LOOKALIKE = {
+  a: "@",
+  b: "8",
+  e: "3",
+  g: "9",
+  i: "1",
+  l: "|",
+  o: "0",
+  s: "$",
+  t: "+",
+};
+const LETTERS = [..."abcdefghijklmnopqrstuvwxyz"];
+const SYMBOLS = [..."#%&*?!@$~^+=<>/\\|"];
+const MIRROR = {
+  "/": "\\",
+  "\\": "/",
+  "(": ")",
+  ")": "(",
+  "[": "]",
+  "]": "[",
+  "{": "}",
+  "}": "{",
+  "<": ">",
+  ">": "<",
+};
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
+const shuffle = (list) => list.toSorted(() => Math.random() - 0.5);
 
-// 0 in the first room, then climbing toward 1 forever: half the house is gone
-// after `halfLife` rooms, three quarters after twice that, and so on.
-export function progress(room) {
-  return 1 - 0.5 ** ((room - 1) / config.halfLife);
-}
-
-// Shortens the stem so the whole name fits a 20-character slot.
+// Shortens the stem so the whole name fits in 20 characters.
 function fit(stem, suffix, ext) {
   const room = 20 - suffix.length - (ext ? ext.length + 1 : 0);
   return stem.slice(0, room) + suffix + (ext ? `.${ext}` : "");
@@ -33,7 +54,34 @@ function decayFilename(name, p) {
   return "untitled";
 }
 
-// Wears the drawing away: strokes crumble into dust or vanish, and lines slip
+// Decays every name, numbering any that collide.
+function decayNames(objects, p) {
+  const seen = [];
+  return objects.map(({ name }) => {
+    const base = decayFilename(name, p);
+    let shown = base;
+    for (let n = 2; seen.includes(shown); n++) {
+      const [stem, ext] = base.split(".");
+      shown = fit(stem, `(${n})`, ext);
+    }
+    seen.push(shown);
+    return shown;
+  });
+}
+
+// Flips a plan left to right. Braces flip too, so "{0}" still reads "{0}".
+function mirror(lines) {
+  const width = Math.max(...lines.map((line) => line.length));
+  return lines.map((line) =>
+    [...line.padEnd(width)]
+      .reverse()
+      .map((ch) => MIRROR[ch] ?? ch)
+      .join("")
+      .trimEnd(),
+  );
+}
+
+// Wears the plan away: strokes crumble into dust or vanish, and lines slip
 // sideways. Markers are left whole so every object still has a place.
 function erode(lines, p) {
   return lines.map((line) => {
@@ -44,7 +92,7 @@ function erode(lines, p) {
         index + 2,
       ]),
     );
-    let worn = [...line]
+    const worn = [...line]
       .map((ch, i) => {
         if (kept.has(i)) return ch;
         if (ch === " ") return Math.random() < 0.02 * p ? pick(DUST) : ch;
@@ -52,62 +100,53 @@ function erode(lines, p) {
         return Math.random() < p ? " " : pick(DUST);
       })
       .join("");
-    if (Math.random() < 0.4 * p) {
-      worn = " ".repeat(1 + Math.floor(Math.random() * 2)) + worn;
-    }
-    return worn;
+    const slip =
+      Math.random() < 0.4 * p ? 1 + Math.floor(Math.random() * 2) : 0;
+    return " ".repeat(slip) + worn;
   });
 }
 
-// Writes each filename over the drawing, starting at its marker. Returns the
-// finished lines and where each object landed, so room.jsx can make it a link.
-function placeObjects(lines, names) {
+// Writes each filename over the plan at a marker: reading right from it, or
+// ending at it on a mirrored plan, where the free space is on the left.
+// `order` deals objects to markers; a marker with no object is blanked.
+// Returns the lines and where each object landed, for room.jsx to cut out.
+function placeObjects(lines, names, order, flipped) {
   const slots = [];
-  const blank = lines.map((line, row) =>
-    line.replace(MARKER, (marker, index, col) => {
-      slots.push({ row, col, index: Number(index) });
+  const art = lines.map((line, row) =>
+    line.replace(MARKER, (marker, n, col) => {
+      const index = order[n];
+      if (index < names.length) {
+        const start = flipped ? col + 3 - names[index].length : col;
+        slots.push({ row, col: Math.max(0, start), index });
+      }
       return "   ";
     }),
   );
-  slots.sort((a, b) => a.row - b.row || a.col - b.col);
 
-  // Keep labels inside the page, and push a label right if it would cover
-  // the one before it on the same line.
-  let end = 0;
+  // Left to right on each line, pushing a label right if it would cover the
+  // one before it.
+  slots.sort((a, b) => a.row - b.row || a.col - b.col);
   slots.forEach((slot, i) => {
+    const before = slots[i - 1];
+    if (before?.row === slot.row) {
+      slot.col = Math.max(
+        slot.col,
+        before.col + names[before.index].length + 1,
+      );
+    }
     const name = names[slot.index];
-    if (i === 0 || slots[i - 1].row !== slot.row) end = 0;
-    slot.col = Math.max(Math.min(slot.col, WIDTH - name.length), end);
-    end = slot.col + name.length + 1;
-    const line = blank[slot.row].padEnd(slot.col + name.length);
-    blank[slot.row] =
+    const line = art[slot.row].padEnd(slot.col + name.length);
+    art[slot.row] =
       line.slice(0, slot.col) + name + line.slice(slot.col + name.length);
   });
-
-  const width = Math.max(...blank.map((line) => line.length));
-  return { art: blank.map((line) => line.padEnd(width)), slots };
+  return { art, slots };
 }
 
-const LOOKALIKE = {
-  a: "@",
-  b: "8",
-  e: "3",
-  g: "9",
-  i: "1",
-  l: "|",
-  o: "0",
-  s: "$",
-  t: "+",
-};
-const LETTERS = [..."abcdefghijklmnopqrstuvwxyz"];
-const SYMBOLS = [..."#%&*?!@$~^+=<>/\\|"];
-
-// Each room damages a share of what the last room still remembered: a letter
-// turns into a lookalike or a stranger, a symbol takes its place, it falls
-// out, or a symbol creeps in beside it. Damage is never repaired.
-function forget(text, room) {
-  if (room === 1) return text;
-  const rate = 1 - (1 - progress(room)) / (1 - progress(room - 1));
+// Damages a share `rate` of what's left of the answer: a letter turns into a
+// lookalike or a stranger, a symbol takes its place, it falls out, or a
+// symbol creeps in beside it. Each room damages the last room's copy, so
+// nothing is ever repaired.
+function forget(text, rate) {
   return [...text]
     .map((ch) => {
       if (Math.random() >= rate) return ch;
@@ -120,39 +159,27 @@ function forget(text, room) {
     .join("");
 }
 
-// Turns Claude's response into the room the visitor sees: decayed names
-// (numbered if two collide), the drawing worn down, and the visitor's answer
-// a little more damaged. `chosen` is filled in later, when the visitor picks
-// the object that seeds the next room.
+// Turns the server's room into the one the visitor sees: decayed names dealt
+// across a worn (and maybe mirrored) floor plan, and the visitor's answer a
+// little more damaged. `chosen` is set later, when the visitor goes further.
 export function makeRoom(
-  { narration, objects, art },
-  room,
+  { narration, layout, objects, decay: p },
   prev,
   cameThrough,
   answer,
 ) {
-  const p = progress(room);
-  const seen = [];
-  const names = objects.map(({ name }) => {
-    const base = decayFilename(name, p);
-    let shown = base;
-    for (let n = 2; seen.includes(shown); n++) {
-      const [stem, ext] = base.split(".");
-      shown = fit(stem, `(${n})`, ext);
-    }
-    seen.push(shown);
-    return shown;
-  });
+  const names = decayNames(objects, p);
+  const flipped = Math.random() < 0.5;
+  const plan = flipped ? mirror(PLANS[layout].art) : PLANS[layout].art;
+  // The share of what the last room remembered that this room loses.
+  const rate = 1 - (1 - p) / (1 - (prev?.decay ?? 0));
 
   return {
     narration,
-    objects: objects.map((object, i) => ({
-      name: names[i],
-      note: object.note,
-    })),
-    ...placeObjects(erode(art, p), names),
+    objects: objects.map(({ note }, i) => ({ name: names[i], note })),
+    ...placeObjects(erode(plan, p), names, shuffle([0, 1, 2, 3]), flipped),
     decay: p,
-    remembered: forget(prev?.remembered ?? answer, room),
+    remembered: forget(prev?.remembered ?? answer, rate),
     cameThrough,
     chosen: null,
   };

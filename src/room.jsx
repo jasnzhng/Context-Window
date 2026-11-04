@@ -39,7 +39,7 @@ export default function Room({ n }) {
       })
       .then((data) => {
         if (ignoreStaleRequest) return;
-        const made = makeRoom(data, n, prev, seed?.name, visit.answer);
+        const made = makeRoom(data, prev, seed?.name, visit.answer);
         visit.rooms[n - 1] = made;
         saveVisit(visit);
         setRoom(made);
