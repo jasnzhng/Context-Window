@@ -8,17 +8,17 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "generate": "node generate.js",
-    "build": "node build.js && webpack --mode production",
-    "build:fake": "node build.js fixtures/chain.fake.json && webpack --mode production",
-    "zip": "npm run build && ! grep -rq sk-ant- dist && rm -f context-window.zip && cd dist && zip -qr ../context-window.zip .",
+    "start": "webpack --mode production && node --env-file-if-exists=.env server.js",
+    "dev": "webpack --mode development --watch",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.4.0",
+    "express": "^5.3.0",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^7.18.5"
   },
   "devDependencies": {
     "@babel/core": "^8.1.0",

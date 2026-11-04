@@ -1,19 +1,31 @@
+import { useNavigate } from "react-router-dom";
 import Typewriter from "./typewriter";
+import { saveVisit } from "./visit";
+import config from "../config.json";
 
-export default function Opening({ page }) {
+export default function Opening() {
+  const navigate = useNavigate();
+
+  // A new answer starts a new walk through the house.
   function handleSubmit(event) {
     event.preventDefault();
-    // Nothing reads this yet: the rooms were baked from the artist's own answer.
-    sessionStorage.setItem("answer", event.target.answer.value);
-    window.location.href = "room-01.html";
+    saveVisit({ answer: event.target.answer.value, rooms: [] });
+    navigate("/room/1");
   }
 
   return (
     <main>
+      <title>context window</title>
       <h1>~ $ ./context-window</h1>
-      <Typewriter text={page.question}></Typewriter>
+      <Typewriter text={config.question}></Typewriter>
       <form onSubmit={handleSubmit}>
-        &gt; <input name="answer" autoComplete="off" aria-label="your answer" />{" "}
+        &gt;{" "}
+        <input
+          name="answer"
+          autoComplete="off"
+          aria-label="your answer"
+          required
+        />{" "}
         <button className="obj">[enter]</button>
       </form>
     </main>

@@ -1,56 +1,111 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import Typewriter from "./typewriter";
+import { makeRoom } from "./decay";
+import { loadVisit, saveVisit } from "./visit";
+import config from "../config.json";
 
 const pad = (n) => String(n).padStart(2, "0");
 
-export default function Room({ page }) {
-  const [status, setStatus] = useState(
-    `room ${pad(page.room)}/${pad(page.total)} · ${page.objects.length} files`,
-  );
-  const back =
-    page.room === 1 ? "index.html" : `room-${pad(page.room - 1)}.html`;
+export default function Room({ n }) {
+  // A room the visitor has already seen comes back from storage, unchanged.
+  const [room, setRoom] = useState(() => loadVisit().rooms[n - 1]);
+  const [note, setNote] = useState(null);
+
+  // Otherwise, ask the server for it.
+  useEffect(() => {
+    if (room) return;
+    let ignoreStaleRequest = false;
+
+    const visit = loadVisit();
+    const prev = visit.rooms[n - 2];
+    const clicked = prev?.objects[prev.exit].name;
+
+    fetch("/api/rooms", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        room: n,
+        answer: visit.answer,
+        narration: prev?.narration,
+        clicked,
+      }),
+    })
+      .then((response) => {
+        if (!response.ok) throw Error(response.statusText);
+        return response.json();
+      })
+      .then((data) => {
+        if (ignoreStaleRequest) return;
+        const made = makeRoom(data, n, config.rooms, clicked);
+        visit.rooms[n - 1] = made;
+        saveVisit(visit);
+        setRoom(made);
+      })
+      .catch((error) => console.log(error));
+
+    return () => {
+      ignoreStaleRequest = true; // cleanup: ignore the response if we unmount first
+    };
+  }, [n, room]);
+
+  const next = n < config.rooms ? `/room/${n + 1}` : "/end";
+  const back = n === 1 ? "/" : `/room/${n - 1}`;
 
   return (
     <main>
-      <h1>~/house $ cd room-{pad(page.room)}</h1>
-      <Typewriter text={page.narration}></Typewriter>
+      <title>{`room ${pad(n)} — context window`}</title>
+      <h1>~/house $ cd room-{pad(n)}</h1>
 
-      {/* Split keeps the "[N] + 17 spaces" slots, which become objects. */}
-      <pre>
-        {page.frame.split(/(\[\d\] {17})/).map((part, i) => {
-          if (!part.startsWith("[")) return part;
-          const object = page.objects[part[1]];
-          if (!object) return " ".repeat(20);
-          return (
-            <RoomObject
-              key={i}
-              object={object}
-              setStatus={setStatus}
-            ></RoomObject>
-          );
-        })}
-      </pre>
+      {!room ? (
+        <p className="status">...</p>
+      ) : (
+        <>
+          <Typewriter text={room.narration}></Typewriter>
 
-      <p className="status" aria-live="polite">
-        {status}
-      </p>
-      <footer>
-        <a href={back}>cd ..</a>
-        {page.cameThrough && <span>you came through: {page.cameThrough}</span>}
-      </footer>
+          {/* Split keeps the "[N] + 17 spaces" slots, which become objects. */}
+          <pre>
+            {room.frame.split(/(\[\d\] {17})/).map((part, i) => {
+              if (!part.startsWith("[")) return part;
+              const index = Number(part[1]);
+              const object = room.objects[index];
+              if (!object) return " ".repeat(20);
+              return (
+                <RoomObject
+                  key={i}
+                  object={object}
+                  href={index === room.exit ? next : null}
+                  setNote={setNote}
+                ></RoomObject>
+              );
+            })}
+          </pre>
+
+          <p className="status" aria-live="polite">
+            {note ??
+              `room ${pad(n)}/${pad(config.rooms)} · ${room.objects.length} files`}
+          </p>
+          <footer>
+            <Link to={back}>cd ..</Link>
+            {room.cameThrough && (
+              <span>you came through: {room.cameThrough}</span>
+            )}
+          </footer>
+        </>
+      )}
     </main>
   );
 }
 
 // The exit is a link and dead ends are buttons, but they look the same.
-function RoomObject({ object, setStatus }) {
+function RoomObject({ object, href, setNote }) {
   const padding = " ".repeat(20 - object.name.length);
-  if (object.href) {
+  if (href) {
     return (
       <>
-        <a className="obj" href={object.href}>
+        <Link className="obj" to={href}>
           {object.name}
-        </a>
+        </Link>
         {padding}
       </>
     );
@@ -59,7 +114,7 @@ function RoomObject({ object, setStatus }) {
     <>
       <button
         className="obj"
-        onClick={() => setStatus(`${object.name}: ${object.note}`)}
+        onClick={() => setNote(`${object.name}: ${object.note}`)}
       >
         {object.name}
       </button>

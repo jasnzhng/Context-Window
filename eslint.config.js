@@ -8,12 +8,12 @@ import globals from "globals";
 export default [
   // Ignore all files matching these glob patterns
   {
-    ignores: ["**/node_modules/**", "**/dist/**", "**/bundle.js"],
+    ignores: ["**/node_modules/**", "**/bundle.js"],
   },
 
-  // Scripts that run in node: the generator, the build and the configs
+  // Scripts that run in node: the server and the configs
   {
-    files: ["*.js", "lib/**/*.js"],
+    files: ["*.js"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
@@ -31,7 +31,7 @@ export default [
 
   // React front end
   {
-    files: ["src/**/*.jsx"],
+    files: ["src/**/*.js", "src/**/*.jsx"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",

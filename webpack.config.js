@@ -3,11 +3,11 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// build.js writes the HTML into dist/ first; this only adds bundle.js.
+// Builds the React app into public/bundle.js, which server.js serves.
 export default (env, argv) => ({
   entry: "./src/main.jsx",
   output: {
-    path: path.join(__dirname, "dist"),
+    path: path.join(__dirname, "public"),
     filename: "bundle.js",
   },
   module: {
@@ -30,6 +30,8 @@ export default (env, argv) => ({
       },
     ],
   },
+  // React and the router are ~250 KB; that is fine for a local piece.
+  performance: { hints: false },
   resolve: {
     extensions: [".js", ".jsx"],
   },
