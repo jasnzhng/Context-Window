@@ -10,6 +10,10 @@ import {
 import Opening from "./opening";
 import Room from "./room";
 import { loadVisit } from "./visit";
+import { startCamera } from "./camera";
+
+// A reload drops the webcam stream; turn it back on if the visitor said yes.
+if (loadVisit()?.peek) startCamera();
 
 const mountroot = createRoot(document.getElementById("mountme"));
 mountroot.render(

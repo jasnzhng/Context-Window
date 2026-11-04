@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Typewriter from "./typewriter";
+import CheckIn, { nextQuestion } from "./checkin";
 import { makeRoom } from "./decay";
 import { loadVisit, saveVisit } from "./visit";
 
@@ -11,6 +12,7 @@ export default function Room({ n }) {
   const [room, setRoom] = useState(() => loadVisit().rooms[n - 1]);
   // The object whose description is showing; coming back, the one you chose.
   const [selected, setSelected] = useState(() => room?.chosen ?? null);
+  const [checkIn, setCheckIn] = useState(null); // the question, while asking
   const navigate = useNavigate();
 
   // Otherwise, ask the server for it.
@@ -28,6 +30,7 @@ export default function Room({ n }) {
       body: JSON.stringify({
         room: n,
         answer: visit.answer,
+        importance: visit.importance,
         narration: prev?.narration,
         clicked: seed?.name,
         clickedNote: seed?.note,
@@ -53,16 +56,28 @@ export default function Room({ n }) {
 
   const back = n === 1 ? "/" : `/room/${n - 1}`;
 
+  const next = `/room/${n + 1}`;
+
   // The chosen object seeds the next room. Choosing a different object than
   // last time abandons the old path: every room after this one is dropped.
+  // Before a new room is generated, now and then (never two rooms running)
+  // the house stops to check on the visitor first.
   function goFurther() {
     const visit = loadVisit();
-    if (visit.rooms[n - 1].chosen !== selected) {
-      visit.rooms = visit.rooms.slice(0, n);
-      visit.rooms[n - 1].chosen = selected;
-      saveVisit(visit);
-    }
-    navigate(`/room/${n + 1}`);
+    if (visit.rooms[n - 1].chosen === selected) return navigate(next);
+
+    visit.rooms = visit.rooms.slice(0, n);
+    visit.rooms[n - 1].chosen = selected;
+    // The chance starts at 30% one room after the last check-in and climbs
+    // 20% for every room without one, so it's certain by the fifth.
+    const since = n - (visit.lastCheckIn ?? 0);
+    const due = since >= 2 && Math.random() < 0.3 + 0.2 * (since - 2);
+    const question = due ? nextQuestion(visit) : null;
+    if (due) visit.lastCheckIn = n;
+    saveVisit(visit);
+
+    if (due) setCheckIn(question);
+    else navigate(next);
   }
 
   // Cuts one line of the drawing around the filenames on it, which become
@@ -99,7 +114,7 @@ export default function Room({ n }) {
         </p>
       ) : (
         <>
-          <Meter decay={room.decay} remembered={room.remembered}></Meter>
+          <Meter context={room.context} remembered={room.remembered}></Meter>
           <Typewriter text={room.narration}></Typewriter>
 
           <pre className={room.decay > 0.6 ? "art unstable" : "art"}>
@@ -125,6 +140,12 @@ export default function Room({ n }) {
               </button>
             </div>
           )}
+          {checkIn && (
+            <CheckIn
+              question={checkIn}
+              onAnswer={() => navigate(next)}
+            ></CheckIn>
+          )}
           <footer>
             <Link to={back}>cd ..</Link>
             {room.cameThrough && (
@@ -141,15 +162,15 @@ const FADE = ["▓", "▒", "░"];
 
 // How much of the visit the narrator still holds, and the visitor's answer
 // as it now remembers it. The bar fades out at its edge: █▓▒░ then dots.
-function Meter({ decay, remembered }) {
-  const left = (1 - decay) * 20;
+function Meter({ context, remembered }) {
+  const left = context * 20;
   const bar = Array.from({ length: 20 }, (_, i) => {
     const past = i + 1 - left; // how many cells beyond what's left this one is
     return past <= 0 ? "█" : (FADE[Math.ceil(past) - 1] ?? ".");
   }).join("");
   return (
     <p className="meter">
-      context {bar} {Math.round((1 - decay) * 100)}%
+      context {bar} {Math.round(context * 100)}%
       <br />
       you said: &quot;{remembered}&quot;
     </p>

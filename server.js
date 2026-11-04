@@ -32,14 +32,24 @@ ${Object.entries(PLANS)
 // browser gets it with each room and decays the room to match.
 const progress = (room) => 1 - 0.5 ** ((room - 1) / config.halfLife);
 
-// How far the next room may wander from the last, bolder as the house decays.
-// With halfLife 4: room 2 follows on, 3 slips, 4 barely connects, 5+ anywhere.
-function drift(p) {
-  if (p < 0.2) return "The next room follows naturally from the previous one.";
-  if (p < 0.35) {
+// How much of room 1 can still reach this room's prompt. Rooms 1 and 2 see it
+// whole; from room 3 on, blur() keeps only 1 - p of the previous narration's
+// words, and the losses compound. With halfLife 4: 100%, 100%, 71%, 42%, 21%,
+// 9%, 3%... This is the context bar, and it sets the drift.
+function context(room) {
+  let left = 1;
+  for (let k = 3; k <= room; k++) left *= 1 - progress(k);
+  return left;
+}
+
+// How far the next room may wander from the last, bolder as context runs out.
+// Room 2 follows on, 3 slips, 4 barely connects, 5+ anywhere.
+function drift(c) {
+  if (c > 0.9) return "The next room follows naturally from the previous one.";
+  if (c > 0.5) {
     return "The next room mostly follows from the previous one, but something impossible has crept in.";
   }
-  if (p < 0.45) {
+  if (c > 0.3) {
     return "The next room barely connects to the previous one: keep one detail and let everything else turn into somewhere else.";
   }
   return "The next room has nothing to do with the previous one. Invent a completely different place: another planet, another century, the inside of something, the bottom of the sea, anywhere. The only link is one stray word.";
@@ -57,15 +67,22 @@ function blur(text, p) {
 // The forgetting lives here. Room 1 sees the answer, room 2 sees room 1 and the
 // answer, and room 3 on sees only a worn copy of the previous room and what
 // was clicked, plus how far it may wander.
-function userMessage({ room, answer, narration, clicked, clickedNote }) {
+function userMessage({
+  room,
+  answer,
+  importance,
+  narration,
+  clicked,
+  clickedNote,
+}) {
   if (room === 1) {
-    return `The visitor was asked: "${config.question}" and answered: "${answer}".\nDescribe the first room.\n\n${SCHEMA}`;
+    return `The visitor was asked: "${config.question}" and answered: "${answer}". It matters to them ${importance} out of 10.\nDescribe the first room.\n\n${SCHEMA}`;
   }
   const p = progress(room);
   const previous = room === 2 ? narration : blur(narration, p);
   const original =
     room === 2 ? `\nThe visitor originally answered: "${answer}"` : "";
-  return `Previous room: ${previous}\nThe visitor went further through: ${clicked} (${clickedNote})${original}\n${drift(p)}\nDescribe the next room.\n\n${SCHEMA}`;
+  return `Previous room: ${previous}\nThe visitor went further through: ${clicked} (${clickedNote})${original}\n${drift(context(room))}\nDescribe the next room.\n\n${SCHEMA}`;
 }
 
 function parseReply(text) {
@@ -99,7 +116,11 @@ app.post("/api/rooms", express.json(), async (req, res) => {
     try {
       const room = parseReply(text);
       console.log(`room ${req.body.room} (${room.layout}): ${room.narration}`);
-      return res.json({ ...room, decay: progress(req.body.room) });
+      return res.json({
+        ...room,
+        decay: progress(req.body.room),
+        context: context(req.body.room),
+      });
     } catch (error) {
       if (attempt === 2) throw error;
     }

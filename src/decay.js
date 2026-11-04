@@ -163,7 +163,7 @@ function forget(text, rate) {
 // across a worn (and maybe mirrored) floor plan, and the visitor's answer a
 // little more damaged. `chosen` is set later, when the visitor goes further.
 export function makeRoom(
-  { narration, layout, objects, decay: p },
+  { narration, layout, objects, decay: p, context },
   prev,
   cameThrough,
   answer,
@@ -179,6 +179,7 @@ export function makeRoom(
     objects: objects.map(({ note }, i) => ({ name: names[i], note })),
     ...placeObjects(erode(plan, p), names, shuffle([0, 1, 2, 3]), flipped),
     decay: p,
+    context,
     remembered: forget(prev?.remembered ?? answer, rate),
     cameThrough,
     chosen: null,
