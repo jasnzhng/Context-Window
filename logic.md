@@ -35,7 +35,7 @@ src/
   opening.jsx        "/"        the question, how important (1-10), "can we get a peek?"
   room.jsx           "/room/:n" fetches, decays and draws one room
   checkin.jsx        the webcam window and its yes/no questions between rooms
-  camera.js          starts and stops the webcam; keeps the stream for the visit
+  camera.js          starts and stops the webcam; keeps the stream; snaps room 1's photo
   typewriter.jsx     types text out at 20 ms per character
   plans.js           the 10 ASCII floor plans (shared with server.js)
   decay.js           filename decay, plan erosion and mirroring, the fading answer
@@ -135,7 +135,7 @@ model makes things up with confidence instead of hedging.
 
 | Room     | The prompt contains                                                               |
 | -------- | --------------------------------------------------------------------------------- |
-| 1        | The question, the visitor's answer, and how much it matters (1-10)                |
+| 1        | The question, the answer, how much it matters (1-10), and the webcam photo if any |
 | 2        | Room 1's narration, the chosen object, and the visitor's answer                   |
 | 3 and up | A blurred copy of the previous narration, the chosen object, and how far to drift |
 
@@ -228,8 +228,20 @@ slots and renders those spans as the object buttons.
 ## The camera
 
 If the visitor says yes to "can we get a peek?", `camera.js` asks for the
-webcam and keeps the stream open for the whole visit. Nothing records,
-analyzes or sends the picture; the point is that the camera light stays on.
+webcam and keeps the stream open for the whole visit. The point is mostly
+that the camera light stays on.
+
+**The peek.** Just before room 1 is requested, `snapFrame()` takes one
+picture (a JPEG, longest side 768 px) and `room.jsx` sends it with that
+request as `photo`. `server.js` puts it in front of the prompt as an image
+block and tells Claude to build the first room from it (its light, its
+colors, two things it can see) without ever mentioning a photo or camera.
+So the visitor's real surroundings are the first room, and then they
+decay out of the house like everything else: room 2 only gets room 1's
+words. The picture is never saved, logged or sent again; a reload of room 1
+before it arrives takes a new one. The server ignores `photo` on any other
+room, and anything that isn't base64 or is over about 1.1 MB. The JSON body
+limit is 2 MB for this.
 The stream lives in a module variable, because `sessionStorage` can't hold
 one. After a reload, `main.jsx` turns it back on if the visit says `peek`.
 Saying no on a new visit turns off a camera left on by an earlier one.

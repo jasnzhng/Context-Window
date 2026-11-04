@@ -113,33 +113,66 @@ function parseReply(text) {
   return { narration: room.narration, layout, objects: room.objects };
 }
 
-app.post("/api/rooms", roomLimit, express.json(), async (req, res) => {
-  const user = userMessage(req.body);
+// Room 1 can come with one webcam frame (base64 JPEG from snapFrame()). It
+// becomes an image block before the text, so the first room is furnished from
+// where the visitor really is. It's never stored or logged, and only room 1
+// ever sees it: from room 2 on, the house has only its own words to go on.
+const PHOTO_NOTE = `The image is where the visitor is right now. Build the first room out of it: its light, its colors and at least two things you can actually see in it become the room and its objects. Describe them as parts of the house, never as a photo. Never mention a camera, a picture or the visitor's face.`;
+const MAX_PHOTO = 1_500_000; // base64 characters, about 1.1 MB of JPEG
 
-  // Retries a bad response once, then gives up.
-  for (let attempt = 1; ; attempt++) {
-    // No temperature: the default of 1.0 is the point.
-    const message = await client.messages.create({
-      model: config.model,
-      max_tokens: 16000,
-      system: SYSTEM,
-      messages: [{ role: "user", content: user }],
-    });
-    const text =
-      message.content.find((block) => block.type === "text")?.text ?? "";
-    try {
-      const room = parseReply(text);
-      console.log(`room ${req.body.room} (${room.layout}): ${room.narration}`);
-      return res.json({
-        ...room,
-        decay: progress(req.body.room),
-        context: context(req.body.room),
+function content(body) {
+  const text = userMessage(body);
+  const { room, photo } = body;
+  const usable =
+    room === 1 &&
+    typeof photo === "string" &&
+    photo.length <= MAX_PHOTO &&
+    /^[A-Za-z0-9+/]+=*$/.test(photo);
+  if (!usable) return text;
+  return [
+    {
+      type: "image",
+      source: { type: "base64", media_type: "image/jpeg", data: photo },
+    },
+    { type: "text", text: `${PHOTO_NOTE}\n\n${text}` },
+  ];
+}
+
+// The default 100 kB body limit is too small for room 1's photo.
+app.post(
+  "/api/rooms",
+  roomLimit,
+  express.json({ limit: "2mb" }),
+  async (req, res) => {
+    const user = content(req.body);
+
+    // Retries a bad response once, then gives up.
+    for (let attempt = 1; ; attempt++) {
+      // No temperature: the default of 1.0 is the point.
+      const message = await client.messages.create({
+        model: config.model,
+        max_tokens: 16000,
+        system: SYSTEM,
+        messages: [{ role: "user", content: user }],
       });
-    } catch (error) {
-      if (attempt === 2) throw error;
+      const text =
+        message.content.find((block) => block.type === "text")?.text ?? "";
+      try {
+        const room = parseReply(text);
+        console.log(
+          `room ${req.body.room} (${room.layout}): ${room.narration}`,
+        );
+        return res.json({
+          ...room,
+          decay: progress(req.body.room),
+          context: context(req.body.room),
+        });
+      } catch (error) {
+        if (attempt === 2) throw error;
+      }
     }
-  }
-});
+  },
+);
 
 app.use(express.static("public"));
 

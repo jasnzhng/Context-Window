@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Typewriter from "./typewriter";
 import CheckIn, { nextQuestion } from "./checkin";
 import { makeRoom } from "./decay";
+import { snapFrame } from "./camera";
 import { loadVisit, saveVisit } from "./visit";
 
 const pad = (n) => String(n).padStart(2, "0");
@@ -24,18 +25,26 @@ export default function Room({ n }) {
     const prev = visit.rooms[n - 2];
     const seed = prev?.objects[prev.chosen];
 
-    fetch("/api/rooms", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        room: n,
-        answer: visit.answer,
-        importance: visit.importance,
-        narration: prev?.narration,
-        clicked: seed?.name,
-        clickedNote: seed?.note,
-      }),
-    })
+    // Room 1 takes one picture of the visitor first, if they let us peek, so
+    // the house can start out looking like where they really are.
+    const snap = n === 1 && visit.peek ? snapFrame() : Promise.resolve(null);
+
+    snap
+      .then((photo) =>
+        fetch("/api/rooms", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            room: n,
+            answer: visit.answer,
+            importance: visit.importance,
+            narration: prev?.narration,
+            clicked: seed?.name,
+            clickedNote: seed?.note,
+            photo,
+          }),
+        }),
+      )
       .then((response) => {
         if (!response.ok) throw Error(response.statusText);
         return response.json();
