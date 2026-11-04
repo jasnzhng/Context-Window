@@ -1,0 +1,6 @@
+{
+  "question": "What did you leave in the other room?",
+  "rooms": 6,
+  "model": "claude-haiku-5-5",
+  "seed": 42
+}

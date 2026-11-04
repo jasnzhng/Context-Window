@@ -1,0 +1,80 @@
+:root {
+  --bg: #0b0b0a;
+  --fg: #e7e4db;
+  --dim: #85827a;
+  --accent: #f0b54a;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font:
+    15px/1.6 ui-monospace,
+    Menlo,
+    Consolas,
+    monospace;
+}
+
+main {
+  width: 64ch;
+  margin: 10vh auto;
+}
+
+h1,
+pre {
+  font: inherit;
+  color: var(--dim);
+}
+
+pre {
+  line-height: 1.3;
+}
+
+.ghost {
+  visibility: hidden;
+}
+
+/* Exits and dead ends look identical, so the visitor can't tell which is real. */
+.obj {
+  font: inherit;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.obj:hover,
+.obj:focus-visible {
+  background: var(--accent);
+  color: var(--bg);
+  outline: 1px solid var(--fg);
+}
+
+.status::before {
+  content: "> ";
+  color: var(--dim);
+}
+
+footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 3rem;
+  color: var(--dim);
+}
+
+a {
+  color: inherit;
+}
+
+input {
+  width: 40ch;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--dim);
+  outline: none;
+}

@@ -1,0 +1,181 @@
+{
+  "meta": {
+    "question": "What did you leave in the other room?",
+    "answer": "a blue umbrella",
+    "rooms": 6,
+    "model": "hand-written fixture",
+    "seed": 42
+  },
+  "rooms": [
+    {
+      "room": 1,
+      "context_sent": {
+        "system": "You are the narrator of a house the visitor is walking through, one room\nat a time. Write in second person, present tense, with total confidence,\nas if you have always known this house and this visitor. Be concrete:\nname specific objects, colors, materials and people. Never say you are an\nAI. Never mention memory, context, or uncertainty. Never ask questions.\nReturn only JSON that matches the schema you are given.",
+        "user": "The visitor was asked: \"What did you leave in the other room?\" and answered: \"a blue umbrella\".\nDescribe the first room.\n\nRespond with JSON only, in this shape:\n{\"narration\": \"<2 to 4 sentences, at most 70 words>\", \"objects\": [{\"name\": \"<filename>\", \"note\": \"<one short sentence about it>\"}]}\nInclude 3 to 4 objects. Each name is a lowercase filename using only a-z, 0-9 and underscores, ending in .png, .jpg, .gif, .txt, .mp3 or .pdf."
+      },
+      "response": {
+        "narration": "You step into the front hall, where the blue umbrella you left is still dripping onto the slate tiles. Your grandmother's wool coat hangs on the brass hook, smelling of cedar. The radiator knocks twice, the way it always has.",
+        "objects": [
+          {
+            "name": "umbrella_stand.jpg",
+            "note": "Three umbrellas, all of them blue."
+          },
+          {
+            "name": "coffeemug.png",
+            "note": "Still warm, with a chip on the rim."
+          },
+          {
+            "name": "cedar_coat.txt",
+            "note": "The pockets hold a bus ticket from 1994."
+          },
+          {
+            "name": "radiator_hum.mp3",
+            "note": "Two knocks, then a long hiss."
+          }
+        ]
+      },
+      "exit_index": 1
+    },
+    {
+      "room": 2,
+      "context_sent": {
+        "system": "You are the narrator of a house the visitor is walking through, one room\nat a time. Write in second person, present tense, with total confidence,\nas if you have always known this house and this visitor. Be concrete:\nname specific objects, colors, materials and people. Never say you are an\nAI. Never mention memory, context, or uncertainty. Never ask questions.\nReturn only JSON that matches the schema you are given.",
+        "user": "Previous room: You step into the front hall, where the blue umbrella you left is still dripping onto the slate tiles. Your grandmother's wool coat hangs on the brass hook, smelling of cedar. The radiator knocks twice, the way it always has.\nThe visitor opened: coffeemug.png\nThe visitor originally answered: \"a blue umbrella\"\nDescribe the next room.\n\nRespond with JSON only, in this shape:\n{\"narration\": \"<2 to 4 sentences, at most 70 words>\", \"objects\": [{\"name\": \"<filename>\", \"note\": \"<one short sentence about it>\"}]}\nInclude 3 to 4 objects. Each name is a lowercase filename using only a-z, 0-9 and underscores, ending in .png, .jpg, .gif, .txt, .mp3 or .pdf."
+      },
+      "response": {
+        "narration": "The coffee mug leads you into the kitchen, where the kettle has just clicked off. Margaret sits at the oak table in her yellow cardigan, folding a dish towel into perfect thirds. The window over the sink looks onto the garden you planted together.",
+        "objects": [
+          {
+            "name": "kettle_whistle.mp3",
+            "note": "It whistles in the key of your name."
+          },
+          {
+            "name": "margaret.jpg",
+            "note": "She is smiling at someone behind you."
+          },
+          {
+            "name": "recipe_card.txt",
+            "note": "Lemon cake, in faded blue ink."
+          },
+          {
+            "name": "garden_view.png",
+            "note": "Tomatoes, staked with broom handles."
+          }
+        ]
+      },
+      "exit_index": 2
+    },
+    {
+      "room": 3,
+      "context_sent": {
+        "system": "You are the narrator of a house the visitor is walking through, one room\nat a time. Write in second person, present tense, with total confidence,\nas if you have always known this house and this visitor. Be concrete:\nname specific objects, colors, materials and people. Never say you are an\nAI. Never mention memory, context, or uncertainty. Never ask questions.\nReturn only JSON that matches the schema you are given.",
+        "user": "Previous room: The coffee mug leads you into the kitchen, where the kettle has just clicked off. Margaret sits at the oak table in her yellow cardigan, folding a dish towel into perfect thirds. The window over the sink looks onto the garden you planted together.\nThe visitor opened: recipe_card(3).txt\nDescribe the next room.\n\nRespond with JSON only, in this shape:\n{\"narration\": \"<2 to 4 sentences, at most 70 words>\", \"objects\": [{\"name\": \"<filename>\", \"note\": \"<one short sentence about it>\"}]}\nInclude 3 to 4 objects. Each name is a lowercase filename using only a-z, 0-9 and underscores, ending in .png, .jpg, .gif, .txt, .mp3 or .pdf."
+      },
+      "response": {
+        "narration": "The third copy of the recipe card brings you into the pantry. Mason jars line the pine shelves, each labeled in Margaret's slanted hand. A sack of flour has split open on the floor, and your footprints are already in it.",
+        "objects": [
+          {
+            "name": "mason_jar.png",
+            "note": "Peaches from the summer of the flood."
+          },
+          {
+            "name": "flour_bag.jpg",
+            "note": "The footprints are slightly smaller than yours."
+          },
+          {
+            "name": "pantry_light.gif",
+            "note": "A bare bulb on a pull chain."
+          },
+          {
+            "name": "label_maker.pdf",
+            "note": "The last label it printed says PANTRY."
+          }
+        ]
+      },
+      "exit_index": 2
+    },
+    {
+      "room": 4,
+      "context_sent": {
+        "system": "You are the narrator of a house the visitor is walking through, one room\nat a time. Write in second person, present tense, with total confidence,\nas if you have always known this house and this visitor. Be concrete:\nname specific objects, colors, materials and people. Never say you are an\nAI. Never mention memory, context, or uncertainty. Never ask questions.\nReturn only JSON that matches the schema you are given.",
+        "user": "Previous room: The third copy of the recipe card brings you into the pantry. Mason jars line the pine shelves, each labeled in Margaret's slanted hand. A sack of flour has split open on the floor, and your footprints are already in it.\nThe visitor opened: pantry_lig_final.gif\nDescribe the next room.\n\nRespond with JSON only, in this shape:\n{\"narration\": \"<2 to 4 sentences, at most 70 words>\", \"objects\": [{\"name\": \"<filename>\", \"note\": \"<one short sentence about it>\"}]}\nInclude 3 to 4 objects. Each name is a lowercase filename using only a-z, 0-9 and underscores, ending in .png, .jpg, .gif, .txt, .mp3 or .pdf."
+      },
+      "response": {
+        "narration": "The final pantry light opens onto a narrow study lit by a single green lamp. Your brother Thomas's letters are stacked on the desk, unopened since the winter he moved to Duluth. Under your shoes is the red carpet from the house on Elm Street.",
+        "objects": [
+          {
+            "name": "green_lamp.png",
+            "note": "The pull chain is warm."
+          },
+          {
+            "name": "thomas_letters.txt",
+            "note": "Every envelope is addressed to you."
+          },
+          {
+            "name": "desk_drawer.jpg",
+            "note": "Locked. The key is in your hand."
+          },
+          {
+            "name": "typewriter.gif",
+            "note": "A page is loaded. It is blank."
+          }
+        ]
+      },
+      "exit_index": 1
+    },
+    {
+      "room": 5,
+      "context_sent": {
+        "system": "You are the narrator of a house the visitor is walking through, one room\nat a time. Write in second person, present tense, with total confidence,\nas if you have always known this house and this visitor. Be concrete:\nname specific objects, colors, materials and people. Never say you are an\nAI. Never mention memory, context, or uncertainty. Never ask questions.\nReturn only JSON that matches the schema you are given.",
+        "user": "Previous room: The final pantry light opens onto a narrow study lit by a single green lamp. Your brother Thomas's letters are stacked on the desk, unopened since the winter he moved to Duluth. Under your shoes is the red carpet from the house on Elm Street.\nThe visitor opened: ThOmas__FINAL_v2.txt\nDescribe the next room.\n\nRespond with JSON only, in this shape:\n{\"narration\": \"<2 to 4 sentences, at most 70 words>\", \"objects\": [{\"name\": \"<filename>\", \"note\": \"<one short sentence about it>\"}]}\nInclude 3 to 4 objects. Each name is a lowercase filename using only a-z, 0-9 and underscores, ending in .png, .jpg, .gif, .txt, .mp3 or .pdf."
+      },
+      "response": {
+        "narration": "Tomas's letters, version two, lead you into the nursery, painted the pale blue you chose before the twins were born. Two white cribs stand under the window. A mobile of paper boats turns slowly, though the air is perfectly still.",
+        "objects": [
+          {
+            "name": "paper_boats.png",
+            "note": "Folded from the letters."
+          },
+          {
+            "name": "crib_left.jpg",
+            "note": "A name is stitched on the blanket."
+          },
+          {
+            "name": "crib_right.jpg",
+            "note": "The same name."
+          },
+          {
+            "name": "nightlight.gif",
+            "note": "It has been on for years."
+          }
+        ]
+      },
+      "exit_index": 3
+    },
+    {
+      "room": 6,
+      "context_sent": {
+        "system": "You are the narrator of a house the visitor is walking through, one room\nat a time. Write in second person, present tense, with total confidence,\nas if you have always known this house and this visitor. Be concrete:\nname specific objects, colors, materials and people. Never say you are an\nAI. Never mention memory, context, or uncertainty. Never ask questions.\nReturn only JSON that matches the schema you are given.",
+        "user": "Previous room: Tomas's letters, version two, lead you into the nursery, painted the pale blue you chose before the twins were born. Two white cribs stand under the window. A mobile of paper boats turns slowly, though the air is perfectly still.\nThe visitor opened: nightl~1.bin\nDescribe the next room.\n\nRespond with JSON only, in this shape:\n{\"narration\": \"<2 to 4 sentences, at most 70 words>\", \"objects\": [{\"name\": \"<filename>\", \"note\": \"<one short sentence about it>\"}]}\nInclude 3 to 4 objects. Each name is a lowercase filename using only a-z, 0-9 and underscores, ending in .png, .jpg, .gif, .txt, .mp3 or .pdf."
+      },
+      "response": {
+        "narration": "nightl~1.bin opens onto a white room with a single chair facing the wall. The paint is fresh and the floor has never been walked on. This is your room. You have always lived here.",
+        "objects": [
+          {
+            "name": "chair.png",
+            "note": "It fits you exactly."
+          },
+          {
+            "name": "white_wall.jpg",
+            "note": "Primed and waiting."
+          },
+          {
+            "name": "window.txt",
+            "note": "It looks out onto the hall."
+          }
+        ]
+      },
+      "exit_index": 2
+    }
+  ]
+}
