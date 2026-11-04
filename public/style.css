@@ -77,10 +77,6 @@ pre {
   font-size: 13px;
 }
 
-.meter .lost {
-  opacity: 0.4;
-}
-
 .ghost {
   visibility: hidden;
 }
@@ -124,6 +120,16 @@ pre {
     width: auto;
     animation: none;
   }
+}
+
+/* The object whose description is open stays lit. */
+.obj.selected {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.opened .status {
+  margin-bottom: 0.5rem;
 }
 
 .status::before {

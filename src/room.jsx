@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Typewriter from "./typewriter";
 import { makeRoom } from "./decay";
 import { loadVisit, saveVisit } from "./visit";
@@ -9,7 +9,9 @@ const pad = (n) => String(n).padStart(2, "0");
 export default function Room({ n }) {
   // A room the visitor has already seen comes back from storage, unchanged.
   const [room, setRoom] = useState(() => loadVisit().rooms[n - 1]);
-  const [note, setNote] = useState(null);
+  // The object whose description is showing; coming back, the one you chose.
+  const [selected, setSelected] = useState(() => room?.chosen ?? null);
+  const navigate = useNavigate();
 
   // Otherwise, ask the server for it.
   useEffect(() => {
@@ -18,6 +20,7 @@ export default function Room({ n }) {
 
     const visit = loadVisit();
     const prev = visit.rooms[n - 2];
+    const seed = prev?.objects[prev.chosen];
 
     fetch("/api/rooms", {
       method: "POST",
@@ -26,7 +29,8 @@ export default function Room({ n }) {
         room: n,
         answer: visit.answer,
         narration: prev?.narration,
-        clicked: prev?.objects[prev.exit].name,
+        clicked: seed?.name,
+        clickedNote: seed?.note,
       }),
     })
       .then((response) => {
@@ -35,7 +39,7 @@ export default function Room({ n }) {
       })
       .then((data) => {
         if (ignoreStaleRequest) return;
-        const made = makeRoom(data, n, prev, visit.answer);
+        const made = makeRoom(data, n, prev, seed?.name, visit.answer);
         visit.rooms[n - 1] = made;
         saveVisit(visit);
         setRoom(made);
@@ -49,6 +53,18 @@ export default function Room({ n }) {
 
   const back = n === 1 ? "/" : `/room/${n - 1}`;
 
+  // The chosen object seeds the next room. Choosing a different object than
+  // last time abandons the old path: every room after this one is dropped.
+  function goFurther() {
+    const visit = loadVisit();
+    if (visit.rooms[n - 1].chosen !== selected) {
+      visit.rooms = visit.rooms.slice(0, n);
+      visit.rooms[n - 1].chosen = selected;
+      saveVisit(visit);
+    }
+    navigate(`/room/${n + 1}`);
+  }
+
   // Cuts one line of the drawing around the filenames on it, which become
   // the clickable objects.
   function drawLine(line, row) {
@@ -58,12 +74,13 @@ export default function Room({ n }) {
       const object = room.objects[index];
       parts.push(line.slice(at, col));
       parts.push(
-        <RoomObject
+        <button
           key={index}
-          object={object}
-          href={index === room.exit ? `/room/${n + 1}` : null}
-          setNote={setNote}
-        ></RoomObject>,
+          className={index === selected ? "obj selected" : "obj"}
+          onClick={() => setSelected(index)}
+        >
+          {object.name}
+        </button>,
       );
       at = col + object.name.length;
     }
@@ -78,7 +95,7 @@ export default function Room({ n }) {
 
       {!room ? (
         <p className="status loading" aria-live="polite">
-          drawing room-{pad(n)}
+          loading room-{pad(n)}
         </p>
       ) : (
         <>
@@ -94,9 +111,20 @@ export default function Room({ n }) {
             ))}
           </pre>
 
-          <p className="status" aria-live="polite">
-            {note ?? `room ${pad(n)} · ${room.objects.length} files`}
-          </p>
+          {selected === null ? (
+            <p className="status">
+              room {pad(n)} · {room.objects.length} files · open one
+            </p>
+          ) : (
+            <div className="opened" aria-live="polite">
+              <p className="status">
+                {room.objects[selected].name}: {room.objects[selected].note}
+              </p>
+              <button className="obj" onClick={goFurther}>
+                [go further]
+              </button>
+            </div>
+          )}
           <footer>
             <Link to={back}>cd ..</Link>
             {room.cameThrough && (
@@ -109,36 +137,21 @@ export default function Room({ n }) {
   );
 }
 
+const FADE = ["▓", "▒", "░"];
+
 // How much of the visit the narrator still holds, and the visitor's answer
-// as it now remembers it.
+// as it now remembers it. The bar fades out at its edge: █▓▒░ then dots.
 function Meter({ decay, remembered }) {
-  const left = Math.round((1 - decay) * 20);
+  const left = (1 - decay) * 20;
+  const bar = Array.from({ length: 20 }, (_, i) => {
+    const past = i + 1 - left; // how many cells beyond what's left this one is
+    return past <= 0 ? "█" : (FADE[Math.ceil(past) - 1] ?? ".");
+  }).join("");
   return (
     <p className="meter">
-      context [{"#".repeat(left)}
-      <span className="lost">{".".repeat(20 - left)}</span>]{" "}
-      {Math.round((1 - decay) * 100)}%
+      context {bar} {Math.round((1 - decay) * 100)}%
       <br />
       you said: &quot;{remembered}&quot;
     </p>
-  );
-}
-
-// The exit is a link and dead ends are buttons, but they look the same.
-function RoomObject({ object, href, setNote }) {
-  if (href) {
-    return (
-      <Link className="obj" to={href}>
-        {object.name}
-      </Link>
-    );
-  }
-  return (
-    <button
-      className="obj"
-      onClick={() => setNote(`${object.name}: ${object.note}`)}
-    >
-      {object.name}
-    </button>
   );
 }

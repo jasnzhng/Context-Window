@@ -10,7 +10,7 @@ export default function Typewriter({ text }) {
   // One more character every 20 ms.
   useEffect(() => {
     if (shown >= text.length) return;
-    const timer = setTimeout(() => setShown(shown + 1), 20);
+    const timer = setTimeout(() => setShown(shown + 1), 10);
     return () => clearTimeout(timer);
   }, [shown, text.length]);
 

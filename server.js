@@ -25,7 +25,7 @@ You are also a careful ASCII artist, and you draw every room you describe.`;
 const SCHEMA = `Respond in two parts.
 
 First, JSON only, in this shape:
-{"narration": "<2 to 4 sentences, at most 70 words>", "objects": [{"name": "<filename>", "note": "<one short sentence about it>"}]}
+{"narration": "<2 to 4 sentences, at most 70 words>", "objects": [{"name": "<filename>", "note": "<what the visitor finds when they open it, 1 to 2 sentences>"}]}
 Include 3 to 4 objects. Each name is a lowercase filename using only a-z, 0-9 and underscores, ending in .png, .jpg, .gif, .txt, .mp3 or .pdf.
 
 Then, after the JSON, draw the room as ASCII art inside <art></art> tags:
@@ -45,15 +45,43 @@ const FALLBACK = `\
 |                                                      |
 +------------------------------------------------------+`.split("\n");
 
+// Same curve as progress() in src/decay.js: 0 in room 1, climbing toward 1.
+const progress = (room) => 1 - 0.5 ** ((room - 1) / config.halfLife);
+
+// How far the next room may wander from the last, bolder as the house decays.
+// With halfLife 4: room 2 follows on, 3 slips, 4 barely connects, 5+ anywhere.
+function drift(p) {
+  if (p < 0.2) return "The next room follows naturally from the previous one.";
+  if (p < 0.35) {
+    return "The next room mostly follows from the previous one, but something impossible has crept in.";
+  }
+  if (p < 0.45) {
+    return "The next room barely connects to the previous one: keep one detail and let everything else turn into somewhere else.";
+  }
+  return "The next room has nothing to do with the previous one. Invent a completely different place: another planet, another century, the inside of something, the bottom of the sea, anywhere. The only link is one stray word.";
+}
+
+// Blanks out a share p of the words, so the narrator has to fill the gaps.
+function blur(text, p) {
+  return text
+    .split(" ")
+    .map((word) => (Math.random() < p ? "..." : word))
+    .join(" ")
+    .replace(/(\.\.\.)( \.\.\.)+/g, "...");
+}
+
 // The forgetting lives here. Room 1 sees the answer, room 2 sees room 1 and the
-// answer, and room 3 on sees only the previous room and what was clicked.
-function userMessage({ room, answer, narration, clicked }) {
+// answer, and room 3 on sees only a worn copy of the previous room and what
+// was clicked, plus how far it may wander.
+function userMessage({ room, answer, narration, clicked, clickedNote }) {
   if (room === 1) {
     return `The visitor was asked: "${config.question}" and answered: "${answer}".\nDescribe and draw the first room.\n\n${SCHEMA}`;
   }
+  const p = progress(room);
+  const previous = room === 2 ? narration : blur(narration, p);
   const original =
     room === 2 ? `\nThe visitor originally answered: "${answer}"` : "";
-  return `Previous room: ${narration}\nThe visitor opened: ${clicked}${original}\nDescribe and draw the next room.\n\n${SCHEMA}`;
+  return `Previous room: ${previous}\nThe visitor went further through: ${clicked} (${clickedNote})${original}\n${drift(p)}\nDescribe and draw the next room.\n\n${SCHEMA}`;
 }
 
 // Box-drawing characters are a common slip, so they get swapped for the
@@ -84,7 +112,7 @@ function cleanArt(raw, count) {
     lines.length >= 6 &&
     lines.length <= 24 &&
     markers.length === count &&
-    markers.every((marker, i) => markers.includes(`{${i}}`));
+    markers.every((_, i) => markers.includes(`{${i}}`));
   return usable ? lines : null;
 }
 

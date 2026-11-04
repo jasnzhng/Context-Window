@@ -23,11 +23,15 @@ mountroot.render(
   </StrictMode>,
 );
 
-// A room only exists once the visitor has walked through the ones before it.
-// The key gives each room a fresh component, so its typewriter restarts.
+// A room only exists once the visitor has walked through the ones before it
+// and chosen an object in the room just before. The key gives each room a
+// fresh component, so its typewriter restarts.
 function RoomRoute() {
   const n = Number(useParams().n);
   const visit = loadVisit();
-  if (!visit || n > visit.rooms.length + 1) return <Navigate to="/"></Navigate>;
+  const prev = visit?.rooms[n - 2];
+  if (!visit || n > visit.rooms.length + 1 || (n > 1 && prev?.chosen == null)) {
+    return <Navigate to="/"></Navigate>;
+  }
   return <Room key={n} n={n}></Room>;
 }

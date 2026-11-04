@@ -88,20 +88,49 @@ function placeObjects(lines, names) {
   return { art: blank.map((line) => line.padEnd(width)), slots };
 }
 
-// Each room loses a share of whatever the last room still remembered, so a
-// letter that's gone never comes back.
+const LOOKALIKE = {
+  a: "@",
+  b: "8",
+  e: "3",
+  g: "9",
+  i: "1",
+  l: "|",
+  o: "0",
+  s: "$",
+  t: "+",
+};
+const LETTERS = [..."abcdefghijklmnopqrstuvwxyz"];
+const SYMBOLS = [..."#%&*?!@$~^+=<>/\\|"];
+
+// Each room damages a share of what the last room still remembered: a letter
+// turns into a lookalike or a stranger, a symbol takes its place, it falls
+// out, or a symbol creeps in beside it. Damage is never repaired.
 function forget(text, room) {
   if (room === 1) return text;
-  const lose = 1 - (1 - progress(room)) / (1 - progress(room - 1));
+  const rate = 1 - (1 - progress(room)) / (1 - progress(room - 1));
   return [...text]
-    .map((ch) => (ch !== " " && Math.random() < lose ? "_" : ch))
+    .map((ch) => {
+      if (Math.random() >= rate) return ch;
+      const roll = Math.random();
+      if (roll < 0.3) return LOOKALIKE[ch.toLowerCase()] ?? pick(LETTERS);
+      if (roll < 0.55) return pick(SYMBOLS);
+      if (roll < 0.8) return "";
+      return ch + pick(SYMBOLS);
+    })
     .join("");
 }
 
 // Turns Claude's response into the room the visitor sees: decayed names
-// (numbered if two collide), one random exit, the drawing worn down, and the
-// visitor's answer with a few more letters missing.
-export function makeRoom({ narration, objects, art }, room, prev, answer) {
+// (numbered if two collide), the drawing worn down, and the visitor's answer
+// a little more damaged. `chosen` is filled in later, when the visitor picks
+// the object that seeds the next room.
+export function makeRoom(
+  { narration, objects, art },
+  room,
+  prev,
+  cameThrough,
+  answer,
+) {
   const p = progress(room);
   const seen = [];
   const names = objects.map(({ name }) => {
@@ -121,10 +150,10 @@ export function makeRoom({ narration, objects, art }, room, prev, answer) {
       name: names[i],
       note: object.note,
     })),
-    exit: Math.floor(Math.random() * objects.length),
     ...placeObjects(erode(art, p), names),
     decay: p,
     remembered: forget(prev?.remembered ?? answer, room),
-    cameThrough: prev?.objects[prev.exit].name,
+    cameThrough,
+    chosen: null,
   };
 }
