@@ -340,3 +340,47 @@ input[type="number"] {
   overflow-wrap: anywhere;
   color: var(--fg);
 }
+
+/* "is your name jason?" wraps onto two or three lines; give them room. */
+.whoareyou .giant {
+  line-height: 1.2;
+}
+
+/* The privacy notice, before anything is asked. */
+.notice ul {
+  padding-left: 2ch;
+}
+
+.notice li {
+  margin-bottom: 0.75rem;
+}
+
+.notice b {
+  font-weight: normal;
+  color: var(--accent);
+}
+
+/* On screen the whole time the house is listening. */
+.listening {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 11;
+  padding: 0.25rem 0.75rem;
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--dim);
+}
+
+/* The transcript check-in: what they said, quoted, and a line to answer. */
+.snippet {
+  margin: 0 0 1rem;
+  padding: 1rem;
+  border: 1px solid var(--dim);
+  color: var(--fg);
+}
+
+input.meant {
+  width: calc(100% - 3ch);
+}

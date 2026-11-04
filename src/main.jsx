@@ -17,10 +17,13 @@ import { forget } from "./decay.js";
 import { startGlitch } from "./glitch.js";
 import Exposed from "./exposed";
 import Uninterested from "./uninterested";
-import WhoAreYou from "./whoareyou";
+import Listening from "./listening";
+import { startListening } from "./listen.js";
 
-// A reload drops the webcam stream; turn it back on if the visitor said yes.
+// A reload drops the webcam stream and the recognizer; turn them back on if
+// the visitor said yes. What was heard before the reload is gone for good.
 if (loadVisit()?.peek) startCamera();
+if (loadVisit()?.listen) startListening();
 startPresence();
 startAway();
 startGlitch();
@@ -47,7 +50,7 @@ mountroot.render(
         <Route path="/room/:n" element={<RoomRoute></RoomRoute>}></Route>
       </Routes>
       <Exposed></Exposed>
-      <WhoAreYou></WhoAreYou>
+      <Listening></Listening>
       <Uninterested></Uninterested>
     </BrowserRouter>
   </StrictMode>,

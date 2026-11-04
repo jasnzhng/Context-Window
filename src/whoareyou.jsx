@@ -1,9 +1,8 @@
-// When a device near the visitor gives away its owner's name ("Jason's
-// iPhone"), the whole page stops to ask: "is your name jason?". Once per
-// name per tab, checked on every room, whenever the camera comes on (that's
-// when the labels appear) and whenever a device connects mid-visit.
+// One of the check-ins between rooms (see goFurther in room.jsx): when a
+// device near the visitor gives away its owner's name ("Jason's iPhone"),
+// the whole page becomes "is your name jason?". It's only in the draw when
+// there's a name nobody has asked about yet; once per name per tab.
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { useLocation } from "react-router-dom";
 import Typewriter from "./typewriter";
 import { getStream, onCamera } from "./camera.js";
 import { onDevices, owners } from "./owners.js";
@@ -25,45 +24,44 @@ function markAsked(name) {
   sessionStorage.setItem("askedNames", JSON.stringify([...asked(), name]));
 }
 
-export default function WhoAreYou() {
-  const [asking, setAsking] = useState(null); // { name, device, plural, reply }
+// Every owner the devices give away, kept current: read on mount, when the
+// camera comes on (that's when labels appear) and when a device connects.
+export function useOwners() {
+  const [found, setFound] = useState([]);
   const stream = useSyncExternalStore(onCamera, getStream);
-  const { pathname } = useLocation();
-  const inHouse = pathname.startsWith("/room/");
-
   useEffect(() => {
-    if (asking || !inHouse) return;
     let live = true;
     const check = () =>
-      owners(loadVisit()?.nearby).then((found) => {
-        const next = found.find(({ name }) => !asked().includes(name));
-        if (live && next) setAsking(next);
-      });
+      owners(loadVisit()?.nearby).then((list) => live && setFound(list));
     check();
     const stop = onDevices(check);
     return () => {
       live = false;
       stop();
     };
-  }, [asking, inHouse, pathname, stream]);
+  }, [stream]);
+  return found;
+}
 
-  if (!asking) return null;
-  const { name, device, plural, reply } = asking;
+// The first owner not yet asked about, or null.
+export const unasked = (found) =>
+  found.find(({ name }) => !asked().includes(name)) ?? null;
+
+// The check-in itself. `who` is { name, device, plural }; `onDone` goes on to
+// the next room once the house has replied.
+export default function NameCheckIn({ who, onDone }) {
+  const [reply, setReply] = useState(null);
+  const { name, device, plural } = who;
 
   function answer(yes) {
     markAsked(name);
     const visit = loadVisit();
-    if (visit) {
-      if (yes) visit.name = name;
-      else visit.notName = name;
-      saveVisit(visit);
-    }
+    if (yes) visit.name = name;
+    else visit.notName = name;
+    saveVisit(visit);
     const these = plural ? `${device} are these` : `${device} is this`;
-    setAsking({
-      ...asking,
-      reply: yes ? "> we thought so." : `> then whose ${these}?`,
-    });
-    setTimeout(() => setAsking(null), REPLY_MS);
+    setReply(yes ? "> we thought so." : `> then whose ${these}?`);
+    setTimeout(onDone, REPLY_MS);
   }
 
   return (

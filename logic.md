@@ -95,15 +95,23 @@ calling Claude again.
 
 ## A walk through the house
 
-1. **Opening (`/`).** The page types out the question from `config.json`,
-   then "how important is it to you (1-10)?", then "can we get a peek? it'll
-   help us find it faster" with `[yes]` / `[no]`, then where they are, then
-   whether the house can look around for their things. Each question appears
+1. **Opening (`/`).** First a privacy notice (`Notice` in `opening.jsx`)
+   says what the house uses and exactly where each thing goes: what stays on
+   the device, what goes to Claude, what goes to OpenStreetMap, that the
+   site saves none of it, and that anyone else in the room should be told.
+   Nothing is asked until `[i understand]`. **Keep the notice true:** if the
+   site starts using or sending something new, it has to say so. Then the
+   page types out the question from `config.json`, then "how important is it
+   to you (1-10)?", then "can we get a peek? it'll help us find it faster"
+   with `[yes]` / `[no]`, then where they are, then whether the house can
+   look around for their things, then, only in a browser that can
+   transcribe on the device, whether it can listen. Each question appears
    once the last is answered, like a terminal session. Every permission the
-   visit uses is asked for here: the webcam (left on, see The camera),
-   location, and Bluetooth plus the microphone (see Outside the house).
-   `opening.jsx` saves `{ answer, importance, peek, where, nearby, rooms: [] }`
-   and goes to `/room/1`.
+   visit uses is asked for here, and each can be refused: the webcam (left
+   on, see The camera), location, Bluetooth plus the microphone, and
+   listening (see Outside the house). `opening.jsx` saves
+   `{ answer, importance, peek, where, nearby, listen, rooms: [] }` and goes
+   to `/room/1`.
 2. **Entering a room (`/room/:n`).** `main.jsx` checks that rooms 1 to n−1
    exist and that the visitor chose an object in room n−1, otherwise it sends
    them back to `/`. It renders `<Room key={n}>`; the key gives every room a
@@ -255,7 +263,14 @@ Saying no on a new visit turns off a camera left on by an earlier one.
 may pause first. It never happens two rooms in a row or after room 1. After
 that the chance starts at 30% and climbs by 20% for every room without a
 check-in (30%, 50%, 70%, 90%, then certain), and resets after each one. So
-there's one at least every five rooms, and usually every two or three. `CheckIn` shows a `cam0 ● REC` window with the visitor's own
+there's one at least every five rooms, and usually every two or three. The
+very first one asks for the clipboard (see Outside the house). After that,
+each check-in is drawn at random from the kinds that can happen right now:
+the webcam one always; the transcript one ("what did you mean by that?")
+only if the house is listening and has heard a phrase of at least five
+words to quote; the name one ("is your name jason?") only if a nearby
+device has given away an owner nobody has asked about. The webcam one:
+`CheckIn` shows a `cam0 ● REC` window with the visitor's own
 feed, mirrored and greyscale, and asks one of the questions in `QUESTIONS`
 ("are you still looking?", "have you found it yet?", "is that you?", and
 others). `nextQuestion()` deals them from a shuffled deck saved in the visit,
@@ -324,11 +339,34 @@ forgets the visitor, the browser doesn't.
   is recorded, but every browser then shows its device labels. In the
   house, `owner()` looks for an owner in `nearby` and every camera,
   microphone and speaker label ("Jason's AirPods Pro", "Jason's iPhone
-  Camera" through Continuity Camera, "iPhone de Marie"), and the page
-  becomes "is your name jason?" in giant text. Yes: "we thought so." No:
-  "then whose iphone is this?". Once per name per tab, saved as `name` or
-  `notName`; checked on each room, when the camera comes on and on
-  `devicechange`, so AirPods connecting mid-visit get asked about too.
+  Camera" through Continuity Camera, "iPhone de Marie"). `useOwners()` keeps
+  that list current (on each room, when the camera comes on, and on
+  `devicechange`, so AirPods connecting mid-visit count too), and an owner
+  not yet asked about puts the name check-in in the draw: the page becomes
+  "is your name jason?" in giant text. Yes: "we thought so." No: "then whose
+  iphone is this?". Then on to the next room. Once per name per tab, saved
+  as `name` or `notName`. Device names never leave the browser.
+- **Listening** (`listen.js`, `listening.jsx`, `transcript.jsx`). Only if the
+  visitor says yes to the last opening question, after the notice. The
+  browser's own `SpeechRecognition` transcribes in the background with
+  `processLocally: true`. `canListen()` requires both
+  `SpeechRecognition.available` and `processLocally` on the prototype,
+  because setting an unknown property does nothing and the audio would go
+  to a cloud recognizer; without both (Firefox, Safari, older Chrome), the
+  question isn't asked and nothing listens. `[yes]` downloads the on-device
+  language pack if needed. The transcript is held in memory only: never in
+  `sessionStorage`, never on the server, gone on reload. Each room request
+  sends two random phrases as `overheard`; `server.js` caps them (3 phrases,
+  150 characters) and tells Claude to let one surface, changed. The
+  transcript check-in quotes a 5-to-14-word run from one phrase and asks
+  "what did you mean by that?"; the typed answer goes to the next room as
+  `meant` and is dropped once used. A `● listening, on this device [stop]`
+  line stays on screen the whole time; `[stop]` turns the microphone off,
+  erases the transcript and sets `listen: false`. The panel shows the mic's
+  level in dBFS (an `AnalyserNode` on its own mic stream, measured on the
+  device) and how many words and phrases were heard, never the words. The
+  server logs only `room N (layout)`, never the narration, which could
+  repeat what the visitor said.
 - **Presence** (`presence.js`). MediaPipe's face landmarker runs on the
   webcam about 15 times a second, loaded from jsDelivr when the camera first
   comes on. It has to be that fast to land inside a blink; the face count and

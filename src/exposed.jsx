@@ -5,6 +5,16 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { useLocation } from "react-router-dom";
 import { getStream, onCamera } from "./camera.js";
 import { getBlinks, getPresence, onBlink, onPresence } from "./presence.js";
+import { getListening, onListening, wordCount } from "./listen.js";
+
+// The mic's loudness as a number and a bar: -60 dB and below is empty, 0 dB
+// (as loud as the mic goes) is full.
+function micLine({ on, level }) {
+  if (!on) return null;
+  if (level === null) return "listening, no level";
+  const cells = Math.round(Math.min(1, Math.max(0, (level + 60) / 60)) * 12);
+  return `${Math.round(level)} dB ${"█".repeat(cells)}${"░".repeat(12 - cells)}`;
+}
 import { absence } from "./away.js";
 import { loadVisit } from "./visit.js";
 
@@ -140,6 +150,7 @@ export default function Exposed() {
   const stream = useSyncExternalStore(onCamera, getStream);
   const presence = useSyncExternalStore(onPresence, getPresence);
   const blinks = useSyncExternalStore(onBlink, getBlinks);
+  const listening = useSyncExternalStore(onListening, getListening);
   useLocation(); // re-render on every page, to re-read the visit
   const visit = loadVisit();
 
@@ -219,6 +230,11 @@ export default function Exposed() {
     ["address", where?.place?.display],
     ["face", faceLine(presence, stream, visit)],
     ["blinks", stream && blinkLine(blinks, presence, now)],
+    ["mic", micLine(listening)],
+    [
+      "heard",
+      listening.on && `${wordCount()} words, ${listening.heard.length} phrases`,
+    ],
     [
       "left us",
       absence.leaves ? `${absence.leaves}× for ${duration(away)}` : null,

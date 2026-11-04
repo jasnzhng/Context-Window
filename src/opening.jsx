@@ -5,14 +5,17 @@ import { startCamera, stopCamera } from "./camera";
 import { saveVisit } from "./visit";
 import { locate } from "./location.js";
 import { lookAround } from "./owners.js";
+import { canListen, prepareListening, startListening } from "./listen.js";
 import config from "../config.json";
 
-// Five questions, one after another, like a terminal session: the answer,
-// how much it matters, whether we can turn the camera on, where they are, and
-// whether we can look around for their things. Every permission the visit
-// uses is asked for here, at the start.
+// First a privacy notice, then up to six questions, one after another, like
+// a terminal session: the answer, how much it matters, whether we can turn
+// the camera on, where they are, whether we can look around for their
+// things, and whether we can listen. Every permission the visit uses is
+// asked for here, at the start, and each one can be refused.
 export default function Opening() {
   const navigate = useNavigate();
+  const [agreed, setAgreed] = useState(false);
   const [answer, setAnswer] = useState(null);
   const [importance, setImportance] = useState(null);
   const [peek, setPeek] = useState(null);
@@ -20,6 +23,8 @@ export default function Opening() {
   const [shared, setShared] = useState(null); // their answer to location
   const [where, setWhere] = useState(null);
   const [looking, setLooking] = useState(false);
+  const [nearby, setNearby] = useState(undefined); // undefined until asked
+  const [preparing, setPreparing] = useState(false);
 
   // "yes" turns the webcam on (the browser asks first) and leaves it on for
   // the whole visit.
@@ -37,14 +42,48 @@ export default function Opening() {
     setShared(share);
   }
 
-  // A new answer starts a new walk through the house. "yes" opens the
-  // Bluetooth picker and asks for the microphone (see owners.js), so the
-  // house can learn whose things are nearby, then goes in.
-  async function begin(look) {
+  // "yes" opens the Bluetooth picker and asks for the microphone (see
+  // owners.js), so the house can learn whose things are nearby. Then the
+  // last question, if this browser can transcribe on the device; otherwise
+  // straight in.
+  async function chooseLook(look) {
     setLooking(look);
-    const nearby = look ? await lookAround() : null;
-    saveVisit({ answer, importance, peek, where, nearby, rooms: [] });
+    const found = look ? await lookAround() : null;
+    setLooking(false);
+    if (canListen()) setNearby(found);
+    else begin(found, false);
+  }
+
+  // "yes" gets the on-device language pack ready, then starts listening.
+  async function chooseListen(yes) {
+    setPreparing(yes);
+    const listen =
+      yes && (await prepareListening()) && (await startListening());
+    begin(nearby, Boolean(listen));
+  }
+
+  // A new answer starts a new walk through the house.
+  function begin(found, listen) {
+    saveVisit({
+      answer,
+      importance,
+      peek,
+      where,
+      nearby: found,
+      listen,
+      rooms: [],
+    });
     navigate("/room/1");
+  }
+
+  if (!agreed) {
+    return (
+      <main>
+        <title>context window</title>
+        <h1>~ $ cat privacy.txt</h1>
+        <Notice onAgree={() => setAgreed(true)}></Notice>
+      </main>
+    );
   }
 
   return (
@@ -107,12 +146,82 @@ export default function Opening() {
             <p className="status loading" aria-live="polite">
               looking around
             </p>
+          ) : nearby === undefined ? (
+            <YesNo onAnswer={chooseLook}></YesNo>
           ) : (
-            <YesNo onAnswer={begin}></YesNo>
+            <p className="echo">&gt; done</p>
+          )}
+        </>
+      )}
+
+      {nearby !== undefined && (
+        <>
+          <Typewriter text="Can we listen while you walk? We'll write down what you say, on this device."></Typewriter>
+          {preparing ? (
+            <p className="status loading" aria-live="polite">
+              getting ready to listen
+            </p>
+          ) : (
+            <YesNo onAnswer={chooseListen}></YesNo>
           )}
         </>
       )}
     </main>
+  );
+}
+
+// What the house does with what it's given, before it asks for any of it.
+// Keep this true: if the site starts using something new, say so here.
+function Notice({ onAgree }) {
+  return (
+    <section className="notice" aria-label="privacy notice">
+      <p>
+        This is an artwork. The house builds itself around you, and the more you
+        let it see and hear, the more it can use. It only uses what you say yes
+        to. Every question that follows can be answered no, and you can still
+        walk through.
+      </p>
+      <ul>
+        <li>
+          <b>Camera.</b> Your face and blinks are tracked on this device and
+          never uploaded, except one photo, taken as the first room loads, that
+          is sent to Claude (Anthropic&apos;s AI) to build that room.
+        </li>
+        <li>
+          <b>Location.</b> Your coordinates are sent to OpenStreetMap to look up
+          the address, and the address to Claude to shape the rooms.
+        </li>
+        <li>
+          <b>Nearby devices.</b> Device names (like &ldquo;Jason&apos;s
+          iPhone&rdquo;) are read in your browser and never uploaded.
+        </li>
+        <li>
+          <b>Microphone.</b> If you let the house listen, what you say is
+          transcribed in the background, on this device, for as long as you
+          walk. A few short phrases, and anything you type when it asks what you
+          meant, are sent to Claude to write the next rooms. The loudness meter
+          never leaves this device. A <span className="rec">● listening</span>{" "}
+          line stays on screen, and its [stop] button turns the microphone off
+          and erases the transcript.
+        </li>
+        <li>
+          <b>Clipboard.</b> Only if you choose to show it, and then it&apos;s
+          sent to Claude as an object in a room.
+        </li>
+      </ul>
+      <p>
+        All of it is used only for this artwork. This site doesn&apos;t save any
+        of it: no accounts, no recordings, no transcripts, no logs of what you
+        said. Closing the tab forgets everything. If anyone else is in the room
+        with you, let them know the house can hear them too.
+      </p>
+      <p>
+        &gt;{" "}
+        <button className="obj" ref={(el) => el?.focus()} onClick={onAgree}>
+          [i understand]
+        </button>
+      </p>
+    </section>
   );
 }
 

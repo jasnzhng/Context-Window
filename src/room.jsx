@@ -7,6 +7,9 @@ import { snapFrame } from "./camera";
 import { loadVisit, saveVisit } from "./visit";
 import { placeAt } from "./location.js";
 import { onPresence, getPresence } from "./presence.js";
+import { overheard, snippet } from "./listen.js";
+import NameCheckIn, { unasked, useOwners } from "./whoareyou";
+import TranscriptCheckIn from "./transcript";
 
 const pad = (n) => String(n).padStart(2, "0");
 
@@ -15,9 +18,12 @@ export default function Room({ n }) {
   const [room, setRoom] = useState(() => loadVisit().rooms[n - 1]);
   // The object whose description is showing; coming back, the one you chose.
   const [selected, setSelected] = useState(() => room?.chosen ?? null);
-  // While the house is asking something: { question, choices, reply }.
+  // While the house is asking something. A webcam check-in is
+  // { question, choices, reply }; the others are { kind: "transcript",
+  // snippet } and { kind: "name", who }.
   const [checkIn, setCheckIn] = useState(null);
   const navigate = useNavigate();
+  const found = useOwners(); // names given away by nearby devices
 
   // Otherwise, ask the server for it.
   useEffect(() => {
@@ -47,6 +53,9 @@ export default function Room({ n }) {
             // Told as precisely as the last room remembered; room 1 gets it all.
             where: placeAt(visit.where, prev?.context ?? 1),
             carrying: visit.bring,
+            // What they said out loud, if they let the house listen.
+            overheard: overheard(2),
+            meant: visit.meant,
             photo,
           }),
         }),
@@ -61,6 +70,7 @@ export default function Room({ n }) {
         made.where = placeAt(visit.where, data.context);
         visit.rooms[n - 1] = made;
         delete visit.bring; // it's in this room now
+        delete visit.meant; // and so is what they meant
         saveVisit(visit);
         setRoom(made);
       })
@@ -142,13 +152,40 @@ export default function Room({ n }) {
     const since = n - (visit.lastCheckIn ?? 0);
     const due = since >= 2 && Math.random() < 0.3 + 0.2 * (since - 2);
     const clipboard = due && !visit.askedClipboard && navigator.clipboard;
-    const question = due && !clipboard ? nextQuestion(visit) : null;
+    // Any other check-in is drawn at random from the ones that can happen
+    // right now: the webcam always; the transcript only with a snippet long
+    // enough to quote; the name only with an owner not yet asked about.
+    const quote = snippet();
+    const who = unasked(found);
+    const kinds = ["webcam"];
+    if (quote) kinds.push("transcript");
+    if (who) kinds.push("name");
+    const kind =
+      due && !clipboard
+        ? kinds[Math.floor(Math.random() * kinds.length)]
+        : null;
+    const question = kind === "webcam" ? nextQuestion(visit) : null;
     if (due) visit.lastCheckIn = n;
     if (clipboard) visit.askedClipboard = true;
     saveVisit(visit);
 
     const onward = () => navigate(next);
-    if (clipboard) {
+    if (kind === "transcript") {
+      setCheckIn({
+        kind,
+        snippet: quote,
+        onDone: (answer) => {
+          if (answer) {
+            const later = loadVisit();
+            later.meant = { snippet: quote, answer };
+            saveVisit(later);
+          }
+          onward();
+        },
+      });
+    } else if (kind === "name") {
+      setCheckIn({ kind, who, onDone: onward });
+    } else if (clipboard) {
       setCheckIn({
         question: "what are you holding? show us and we'll bring it in.",
         choices: [
@@ -231,7 +268,13 @@ export default function Room({ n }) {
               </button>
             </div>
           )}
-          {checkIn && <CheckIn key={checkIn.question} {...checkIn}></CheckIn>}
+          {checkIn?.kind === "transcript" ? (
+            <TranscriptCheckIn {...checkIn}></TranscriptCheckIn>
+          ) : checkIn?.kind === "name" ? (
+            <NameCheckIn {...checkIn}></NameCheckIn>
+          ) : (
+            checkIn && <CheckIn key={checkIn.question} {...checkIn}></CheckIn>
+          )}
           <footer>
             <Link to={back}>cd ..</Link>
             {room.cameThrough && (

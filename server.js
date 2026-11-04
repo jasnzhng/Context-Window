@@ -81,6 +81,32 @@ function blur(text, p) {
 // The forgetting lives here. Room 1 sees the answer, room 2 sees room 1 and the
 // answer, and room 3 on sees only a worn copy of the previous room and what
 // was clicked, plus how far it may wander.
+// What the visitor said out loud, if they let the house listen (listen.js):
+// a few phrases transcribed on their device, and their answer to "what did
+// you mean by that?". Both are capped here, whatever the browser sends.
+const said = (text, max) =>
+  String(text ?? "")
+    .replace(/["\n]/g, " ")
+    .trim()
+    .slice(0, max);
+
+function heard(overheard, meant) {
+  const phrases = (Array.isArray(overheard) ? overheard : [])
+    .slice(0, 3)
+    .map((phrase) => said(phrase, 150))
+    .filter(Boolean);
+  let text = "";
+  if (phrases.length) {
+    text += `\nThe visitor said these out loud while walking through the house: ${phrases.map((p) => `"${p}"`).join(", ")}. Let one of them surface in this room, changed, without saying that they said it.`;
+  }
+  const snippet = said(meant?.snippet, 150);
+  const reply = said(meant?.answer, 300);
+  if (snippet && reply) {
+    text += `\nThe visitor was asked what they meant when they said "${snippet}", and answered: "${reply}". Build this room around that answer.`;
+  }
+  return text;
+}
+
 function userMessage({
   room,
   answer,
@@ -90,6 +116,8 @@ function userMessage({
   clickedNote,
   where,
   carrying,
+  overheard,
+  meant,
 }) {
   // Real things from outside the house, both optional. The browser has
   // already blurred `where` to match how much this room remembers.
@@ -99,7 +127,8 @@ function userMessage({
       : "") +
     (carrying
       ? `\nThe visitor brought this in from outside the house: "${String(carrying).slice(0, 300)}". Make it one of this room's objects.`
-      : "");
+      : "") +
+    heard(overheard, meant);
   if (room === 1) {
     return `The visitor was asked: "${config.question}" and answered: "${answer}". It matters to them ${importance} out of 10.${outside}\nDescribe the first room.\n\n${SCHEMA}`;
   }
@@ -170,9 +199,9 @@ app.post(
         message.content.find((block) => block.type === "text")?.text ?? "";
       try {
         const room = parseReply(text);
-        console.log(
-          `room ${req.body.room} (${room.layout}): ${room.narration}`,
-        );
+        // Only the room number and layout: the narration can repeat what
+        // the visitor said or where they are, and this site keeps none of it.
+        console.log(`room ${req.body.room} (${room.layout})`);
         return res.json({
           ...room,
           decay: progress(req.body.room),
