@@ -4,11 +4,25 @@ import Anthropic from "@anthropic-ai/sdk";
 import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import express from "express";
+import { rateLimit } from "express-rate-limit";
 import { PLANS } from "./src/plans.js";
 
 const config = JSON.parse(readFileSync("config.json", "utf8"));
 const client = new Anthropic(); // reads ANTHROPIC_API_KEY from .env
 const app = express();
+
+// Hosts like Render sit behind one proxy hop. Trusting it lets req.ip be the
+// visitor's address, not the proxy's, so the limit below is per visitor.
+app.set("trust proxy", 1);
+
+// Every room costs a Claude call, so cap how fast one visitor can spend them.
+// 40 rooms in 10 minutes is far more than anyone reads; a script hits it fast.
+const roomLimit = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 40,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+});
 
 const SYSTEM = `You are the narrator of a house the visitor is walking through, one room
 at a time. Write in second person, present tense, with total confidence,
@@ -99,7 +113,7 @@ function parseReply(text) {
   return { narration: room.narration, layout, objects: room.objects };
 }
 
-app.post("/api/rooms", express.json(), async (req, res) => {
+app.post("/api/rooms", roomLimit, express.json(), async (req, res) => {
   const user = userMessage(req.body);
 
   // Retries a bad response once, then gives up.
@@ -134,4 +148,6 @@ app.get("/{*path}", (req, res) =>
   res.sendFile("index.html", { root: "public" }),
 );
 
-app.listen(8000, () => console.log("http://localhost:8000"));
+// Hosts choose the port and pass it in PORT; locally it is 8000.
+const port = process.env.PORT ?? 8000;
+app.listen(port, () => console.log(`http://localhost:${port}`));
