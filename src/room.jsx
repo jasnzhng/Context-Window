@@ -1,10 +1,12 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Typewriter from "./typewriter";
 import CheckIn, { nextQuestion } from "./checkin";
-import { makeRoom } from "./decay";
+import { forget, makeRoom } from "./decay";
 import { snapFrame } from "./camera";
 import { loadVisit, saveVisit } from "./visit";
+import { placeAt } from "./location.js";
+import { AWAY_MS, onPresence, getPresence } from "./presence.js";
 
 const pad = (n) => String(n).padStart(2, "0");
 
@@ -13,7 +15,8 @@ export default function Room({ n }) {
   const [room, setRoom] = useState(() => loadVisit().rooms[n - 1]);
   // The object whose description is showing; coming back, the one you chose.
   const [selected, setSelected] = useState(() => room?.chosen ?? null);
-  const [checkIn, setCheckIn] = useState(null); // the question, while asking
+  // While the house is asking something: { question, choices, reply }.
+  const [checkIn, setCheckIn] = useState(null);
   const navigate = useNavigate();
 
   // Otherwise, ask the server for it.
@@ -41,6 +44,9 @@ export default function Room({ n }) {
             narration: prev?.narration,
             clicked: seed?.name,
             clickedNote: seed?.note,
+            // Told as precisely as the last room remembered; room 1 gets it all.
+            where: placeAt(visit.where, prev?.context ?? 1),
+            carrying: visit.bring,
             photo,
           }),
         }),
@@ -52,7 +58,9 @@ export default function Room({ n }) {
       .then((data) => {
         if (ignoreStaleRequest) return;
         const made = makeRoom(data, prev, seed?.name, visit.answer);
+        made.where = placeAt(visit.where, data.context);
         visit.rooms[n - 1] = made;
+        delete visit.bring; // it's in this room now
         saveVisit(visit);
         setRoom(made);
       })
@@ -66,6 +74,63 @@ export default function Room({ n }) {
   const back = n === 1 ? "/" : `/room/${n - 1}`;
 
   const next = `/room/${n + 1}`;
+  const close = () => setCheckIn(null);
+
+  // The house watches through the camera (presence.js). Gone for AWAY_MS, it
+  // asks where they went, once per absence; a second face, once per visit.
+  const askedAway = useRef(false);
+  useEffect(() => {
+    if (!room || checkIn) return;
+    return onPresence(() => {
+      const { faces, awaySince } = getPresence();
+      if (faces) askedAway.current = false;
+      if (
+        faces === 0 &&
+        !askedAway.current &&
+        Date.now() - awaySince > AWAY_MS
+      ) {
+        askedAway.current = true;
+        setCheckIn({
+          question: "where did you go?",
+          choices: [{ label: "i'm here", onPick: close }],
+        });
+      } else if (faces > 1) {
+        const visit = loadVisit();
+        if (visit.askedCompany) return;
+        visit.askedCompany = true;
+        saveVisit(visit);
+        setCheckIn({
+          question: "who is that with you?",
+          choices: [
+            { label: "no one", onPick: close },
+            { label: "a friend", onPick: close },
+          ],
+        });
+      }
+    });
+  }, [room, checkIn]);
+
+  // Asked once, at the first check-in: what's on their clipboard. Whatever
+  // they show becomes an object in the next room.
+  function askClipboard() {
+    const say = (reply) => {
+      setCheckIn((c) => ({ ...c, reply }));
+      setTimeout(() => navigate(next), 2600);
+    };
+    navigator.clipboard
+      .readText()
+      .then((text) => {
+        const held = text.trim().slice(0, 300);
+        if (!held) return say("> your hands are empty. we'll go on.");
+        const visit = loadVisit();
+        visit.carrying = held;
+        visit.bring = held;
+        saveVisit(visit);
+        const short = held.length > 60 ? `${held.slice(0, 60)}...` : held;
+        say(`> "${short}". we'll bring it in with us.`);
+      })
+      .catch(() => say("> you won't let go of it. that's fine."));
+  }
 
   // The chosen object seeds the next room. Choosing a different object than
   // last time abandons the old path: every room after this one is dropped.
@@ -73,6 +138,14 @@ export default function Room({ n }) {
   // the house stops to check on the visitor first.
   function goFurther() {
     const visit = loadVisit();
+    // Once the house has seen the clipboard, it fills it: you leave carrying
+    // a worn copy of what you went through, and it's what you paste next.
+    if (visit.askedClipboard) {
+      const object = room.objects[selected];
+      navigator.clipboard
+        ?.writeText(`${object.name}: ${forget(object.note, room.decay / 2)}`)
+        .catch(() => {});
+    }
     if (visit.rooms[n - 1].chosen === selected) return navigate(next);
 
     visit.rooms = visit.rooms.slice(0, n);
@@ -81,12 +154,30 @@ export default function Room({ n }) {
     // 20% for every room without one, so it's certain by the fifth.
     const since = n - (visit.lastCheckIn ?? 0);
     const due = since >= 2 && Math.random() < 0.3 + 0.2 * (since - 2);
-    const question = due ? nextQuestion(visit) : null;
+    const clipboard = due && !visit.askedClipboard && navigator.clipboard;
+    const question = due && !clipboard ? nextQuestion(visit) : null;
     if (due) visit.lastCheckIn = n;
+    if (clipboard) visit.askedClipboard = true;
     saveVisit(visit);
 
-    if (due) setCheckIn(question);
-    else navigate(next);
+    const onward = () => navigate(next);
+    if (clipboard) {
+      setCheckIn({
+        question: "what are you holding? show us and we'll bring it in.",
+        choices: [
+          { label: "show us", onPick: askClipboard },
+          { label: "no", onPick: onward },
+        ],
+      });
+    } else if (due) {
+      setCheckIn({
+        question,
+        choices: [
+          { label: "yes", onPick: onward },
+          { label: "no", onPick: onward },
+        ],
+      });
+    } else onward();
   }
 
   // Cuts one line of the drawing around the filenames on it, which become
@@ -123,7 +214,11 @@ export default function Room({ n }) {
         </p>
       ) : (
         <>
-          <Meter context={room.context} remembered={room.remembered}></Meter>
+          <Meter
+            context={room.context}
+            remembered={room.remembered}
+            where={room.where}
+          ></Meter>
           <Typewriter text={room.narration}></Typewriter>
 
           <pre className={room.decay > 0.6 ? "art unstable" : "art"}>
@@ -149,12 +244,7 @@ export default function Room({ n }) {
               </button>
             </div>
           )}
-          {checkIn && (
-            <CheckIn
-              question={checkIn}
-              onAnswer={() => navigate(next)}
-            ></CheckIn>
-          )}
+          {checkIn && <CheckIn key={checkIn.question} {...checkIn}></CheckIn>}
           <footer>
             <Link to={back}>cd ..</Link>
             {room.cameThrough && (
@@ -171,7 +261,7 @@ const FADE = ["▓", "▒", "░"];
 
 // How much of the visit the narrator still holds, and the visitor's answer
 // as it now remembers it. The bar fades out at its edge: █▓▒░ then dots.
-function Meter({ context, remembered }) {
+function Meter({ context, remembered, where }) {
   const left = context * 20;
   const bar = Array.from({ length: 20 }, (_, i) => {
     const past = i + 1 - left; // how many cells beyond what's left this one is
@@ -182,6 +272,12 @@ function Meter({ context, remembered }) {
       context {bar} {Math.round(context * 100)}%
       <br />
       you said: &quot;{remembered}&quot;
+      {where && (
+        <>
+          <br />
+          you are: {where}
+        </>
+      )}
     </p>
   );
 }

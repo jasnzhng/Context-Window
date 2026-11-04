@@ -1,23 +1,39 @@
 // The webcam, kept on for the whole visit once the visitor lets us peek.
-// One frame goes to Claude, once, as room 1 starts loading (see snapFrame);
-// nothing else is recorded or sent. A stream can't be saved in
-// sessionStorage, so it lives here, in memory, for as long as the tab does.
-// main.jsx restarts it after a reload.
+// One frame goes to Claude, once, as room 1 starts loading (see snapFrame).
+// Otherwise nothing records or sends the picture: presence.js looks for faces
+// in it, on this device, and the check-in window shows it back to the visitor.
+// A stream can't be saved in sessionStorage, so it lives here, in memory,
+// for as long as the tab does. main.jsx restarts it after a reload.
+//
+// It's a tiny store: the check-in window, the face detector and the panel
+// all subscribe, so turning the camera off reaches every one of them.
 let stream = null;
+const listeners = new Set();
+const emit = () => listeners.forEach((listener) => listener());
+
+export const getStream = () => stream;
+
+export function onCamera(listener) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
 
 // Resolves to the stream, or null if the visitor (or the browser) says no.
 export async function startCamera() {
+  if (stream) return stream;
   try {
-    stream ??= await navigator.mediaDevices.getUserMedia({ video: true });
+    stream = await navigator.mediaDevices.getUserMedia({ video: true });
   } catch {
     stream = null;
   }
+  emit();
   return stream;
 }
 
 export function stopCamera() {
   stream?.getTracks().forEach((track) => track.stop());
   stream = null;
+  emit();
 }
 
 // The longest side of the snapshot. Claude doesn't need more to see a room,

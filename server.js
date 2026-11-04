@@ -88,15 +88,26 @@ function userMessage({
   narration,
   clicked,
   clickedNote,
+  where,
+  carrying,
 }) {
+  // Real things from outside the house, both optional. The browser has
+  // already blurred `where` to match how much this room remembers.
+  const outside =
+    (where
+      ? `\nWhere the visitor's body really is right now: ${where}. Let this real place bleed into the room without explaining it.`
+      : "") +
+    (carrying
+      ? `\nThe visitor brought this in from outside the house: "${String(carrying).slice(0, 300)}". Make it one of this room's objects.`
+      : "");
   if (room === 1) {
-    return `The visitor was asked: "${config.question}" and answered: "${answer}". It matters to them ${importance} out of 10.\nDescribe the first room.\n\n${SCHEMA}`;
+    return `The visitor was asked: "${config.question}" and answered: "${answer}". It matters to them ${importance} out of 10.${outside}\nDescribe the first room.\n\n${SCHEMA}`;
   }
   const p = progress(room);
   const previous = room === 2 ? narration : blur(narration, p);
   const original =
     room === 2 ? `\nThe visitor originally answered: "${answer}"` : "";
-  return `Previous room: ${previous}\nThe visitor went further through: ${clicked} (${clickedNote})${original}\n${drift(context(room))}\nDescribe the next room.\n\n${SCHEMA}`;
+  return `Previous room: ${previous}\nThe visitor went further through: ${clicked} (${clickedNote})${original}${outside}\n${drift(context(room))}\nDescribe the next room.\n\n${SCHEMA}`;
 }
 
 function parseReply(text) {
@@ -173,6 +184,34 @@ app.post(
     }
   },
 );
+
+// The visitor's address as the server sees it, for the panel on every page.
+app.get("/api/whoami", (req, res) => {
+  res.json({
+    ip: req.ip?.replace(/^::ffff:/, ""),
+    language: req.headers["accept-language"],
+  });
+});
+
+// Turns the browser's exact coordinates into a street address, once per
+// visit, with OpenStreetMap's Nominatim (which asks for at most one request
+// a second and a User-Agent that names the app). Nothing is stored.
+const placeLimit = rateLimit({ windowMs: 60 * 1000, limit: 10 });
+app.get("/api/place", placeLimit, async (req, res) => {
+  const lat = Number(req.query.lat);
+  const lon = Number(req.query.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return res.status(400).end();
+  }
+  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1&lat=${lat}&lon=${lon}`;
+  const response = await fetch(url, {
+    headers: { "User-Agent": "context-window-netart/1.0" },
+  });
+  if (!response.ok) return res.status(502).end();
+  const { address, display_name: display } = await response.json();
+  if (!address) return res.status(404).end();
+  res.json({ ...address, display });
+});
 
 app.use(express.static("public"));
 

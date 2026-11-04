@@ -3,21 +3,32 @@ import { useNavigate } from "react-router-dom";
 import Typewriter from "./typewriter";
 import { startCamera, stopCamera } from "./camera";
 import { saveVisit } from "./visit";
+import { locate } from "./location.js";
 import config from "../config.json";
 
-// Three questions, one after another, like a terminal session: the answer,
-// how much it matters, and whether we can turn the camera on.
+// Four questions, one after another, like a terminal session: the answer,
+// how much it matters, whether we can turn the camera on, and where they are.
 export default function Opening() {
   const navigate = useNavigate();
   const [answer, setAnswer] = useState(null);
   const [importance, setImportance] = useState(null);
+  const [peek, setPeek] = useState(null);
+  const [locating, setLocating] = useState(false);
 
-  // A new answer starts a new walk through the house. "yes" turns the
-  // webcam on (the browser asks first) and leaves it on for the whole visit.
-  async function begin(peek) {
-    if (peek) await startCamera();
+  // "yes" turns the webcam on (the browser asks first) and leaves it on for
+  // the whole visit.
+  async function choosePeek(yes) {
+    if (yes) await startCamera();
     else stopCamera();
-    saveVisit({ answer, importance, peek, rooms: [] });
+    setPeek(yes);
+  }
+
+  // A new answer starts a new walk through the house. "yes" asks the browser
+  // for an exact fix and looks up the street address before going in.
+  async function begin(share) {
+    setLocating(share);
+    const where = share ? await locate() : null;
+    saveVisit({ answer, importance, peek, where, rooms: [] });
     navigate("/room/1");
   }
 
@@ -51,18 +62,45 @@ export default function Opening() {
       {importance !== null && (
         <>
           <Typewriter text="Can we get a peek? We'll find it faster."></Typewriter>
-          <p>
-            &gt;{" "}
-            <button className="obj" onClick={() => begin(true)}>
-              [yes]
-            </button>{" "}
-            <button className="obj" onClick={() => begin(false)}>
-              [no]
-            </button>
-          </p>
+          {peek === null ? (
+            <YesNo onAnswer={choosePeek}></YesNo>
+          ) : (
+            <p className="echo">&gt; {peek ? "yes" : "no"}</p>
+          )}
+        </>
+      )}
+
+      {peek !== null && (
+        <>
+          <Typewriter text="Where are you right now? We'll start looking there."></Typewriter>
+          {locating ? (
+            <p className="status loading" aria-live="polite">
+              locating
+            </p>
+          ) : (
+            <YesNo onAnswer={begin}></YesNo>
+          )}
         </>
       )}
     </main>
+  );
+}
+
+function YesNo({ onAnswer }) {
+  return (
+    <p>
+      &gt;{" "}
+      <button
+        className="obj"
+        ref={(el) => el?.focus()}
+        onClick={() => onAnswer(true)}
+      >
+        [yes]
+      </button>{" "}
+      <button className="obj" onClick={() => onAnswer(false)}>
+        [no]
+      </button>
+    </p>
   );
 }
 

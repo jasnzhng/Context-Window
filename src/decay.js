@@ -146,7 +146,7 @@ function placeObjects(lines, names, order, flipped) {
 // lookalike or a stranger, a symbol takes its place, it falls out, or a
 // symbol creeps in beside it. Each room damages the last room's copy, so
 // nothing is ever repaired.
-function forget(text, rate) {
+export function forget(text, rate) {
   return [...text]
     .map((ch) => {
       if (Math.random() >= rate) return ch;

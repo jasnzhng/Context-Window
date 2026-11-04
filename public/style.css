@@ -2,7 +2,7 @@
   --bg: #0b0b0a;
   --fg: #e7e4db;
   --dim: #85827a;
-  --accent: #f0b54a;
+  --accent: #8dcf1b;
 }
 
 body {
@@ -208,4 +208,96 @@ input[type="number"] {
   display: grid;
   place-items: center;
   color: var(--dim);
+}
+
+/* Face tracking inside the webcam window: corner brackets in the accent color,
+   labelled underneath. */
+.feed {
+  position: relative;
+  overflow: hidden;
+}
+
+.face {
+  position: absolute;
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.5);
+  transition: all 0.4s linear;
+  /* Only the corners: a mask keeps the edges near each corner. */
+  mask:
+    linear-gradient(#000 0 0) top left / 25% 25% no-repeat,
+    linear-gradient(#000 0 0) top right / 25% 25% no-repeat,
+    linear-gradient(#000 0 0) bottom left / 25% 25% no-repeat,
+    linear-gradient(#000 0 0) bottom right / 25% 25% no-repeat;
+}
+
+.face::after {
+  content: attr(data-label);
+  position: absolute;
+  top: 100%;
+  left: 0;
+  font-size: 11px;
+  color: var(--accent);
+}
+
+/* What the site can see. A column at the right edge on wide screens; under
+   the page on narrow ones. Rows arrive one after another, like output. */
+.exposed {
+  width: min(64ch, calc(100% - 32px));
+  margin: 0 auto 10vh;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--dim);
+}
+
+@media (min-width: 1180px) {
+  .exposed {
+    position: fixed;
+    top: 10vh;
+    right: 24px;
+    width: 34ch;
+    max-height: 80vh;
+    margin: 0;
+    overflow-y: auto;
+  }
+}
+
+.exposed .prompt {
+  margin: 0 0 0.5rem;
+}
+
+.exposed dl {
+  margin: 0;
+}
+
+.exposed dl > div {
+  display: grid;
+  grid-template-columns: 11ch 1fr;
+  gap: 1ch;
+  animation: appear 0.01s calc(var(--i) * 70ms) both;
+}
+
+.exposed dt {
+  color: var(--dim);
+}
+
+.exposed dd {
+  margin: 0;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+@keyframes appear {
+  from {
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .exposed dl > div {
+    animation: none;
+  }
+
+  .face {
+    transition: none;
+  }
 }

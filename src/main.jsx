@@ -10,10 +10,29 @@ import {
 import Opening from "./opening";
 import Room from "./room";
 import { loadVisit } from "./visit";
-import { startCamera } from "./camera";
+import { startCamera } from "./camera.js";
+import { startPresence } from "./presence.js";
+import { startAway } from "./away.js";
+import { forget } from "./decay.js";
+import Exposed from "./exposed";
 
 // A reload drops the webcam stream; turn it back on if the visitor said yes.
 if (loadVisit()?.peek) startCamera();
+startPresence();
+startAway();
+
+// Anything copied off the page comes out a little more forgotten than it
+// looked, as worn as the last room the visitor saw.
+document.addEventListener("copy", (event) => {
+  const text = getSelection().toString();
+  if (!text) return;
+  const decay = loadVisit()?.rooms.at(-1)?.decay ?? 0;
+  event.clipboardData.setData(
+    "text/plain",
+    forget(text, Math.max(0.08, decay)),
+  );
+  event.preventDefault();
+});
 
 const mountroot = createRoot(document.getElementById("mountme"));
 mountroot.render(
@@ -23,6 +42,7 @@ mountroot.render(
         <Route path="/" element={<Opening></Opening>}></Route>
         <Route path="/room/:n" element={<RoomRoute></RoomRoute>}></Route>
       </Routes>
+      <Exposed></Exposed>
     </BrowserRouter>
   </StrictMode>,
 );

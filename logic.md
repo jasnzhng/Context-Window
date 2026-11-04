@@ -228,8 +228,10 @@ slots and renders those spans as the object buttons.
 ## The camera
 
 If the visitor says yes to "can we get a peek?", `camera.js` asks for the
-webcam and keeps the stream open for the whole visit. The point is mostly
-that the camera light stays on.
+webcam and keeps the stream open for the whole visit. `presence.js` looks
+for faces in it, on the device (see Outside the house), and one frame goes
+to Claude for room 1 (see The peek). Nothing else records or sends the
+picture.
 
 **The peek.** Just before room 1 is requested, `snapFrame()` takes one
 picture (a JPEG, longest side 768 px) and `room.jsx` sends it with that
@@ -293,3 +295,31 @@ requested twice; `npm start` requests each room once.
   `jsxDEV is not a function`.
 - **There is no ending.** The old `/end` page ("Hello! How can I help you
   today?") was removed when the house became endless.
+
+## Outside the house
+
+Four things reach past the page. None of them decay in the panel: the house
+forgets the visitor, the browser doesn't.
+
+- **Location** (`location.js`). A fourth opening question asks for an exact
+  fix (`enableHighAccuracy`). `GET /api/place` turns it into an address with
+  OpenStreetMap's Nominatim, once per visit. Each room is told
+  `placeAt(where, previous room's context)`: building and street address,
+  then the street, the city, the state, the country, a hemisphere, and
+  "Earth, probably". The meter shows it as `you are:`.
+- **The panel** (`exposed.jsx`, on every page). IP (`GET /api/whoami`), OS and
+  browser from client hints, GPU, screen, cores, memory, battery, network,
+  time zone, languages, devices, permission states, cursor, location, face,
+  how often the visitor left the tab, and what they showed from the clipboard.
+- **Presence** (`presence.js`). MediaPipe's face detector runs on the webcam
+  2.5 times a second, loaded from jsDelivr when the camera first comes on.
+  Away 10 s: "where did you go?". Two faces: "who is that with you?", once.
+  Away 60 s: the camera turns off and the house forgets their face for the
+  rest of the visit. The check-in window brackets every face it finds.
+- **Clipboard.** The first check-in asks "what are you holding?"; whatever
+  they paste in becomes an object in the next room. After that, every
+  `[go further]` leaves a worn copy of the chosen object on the clipboard,
+  and anything copied off the page comes out damaged by `forget()`.
+- **The tab** (`away.js`). While the tab is hidden, its title cycles through
+  lines like "are you still looking?" and the favicon is a blinking eye.
+  Coming back, it says "you came back".
