@@ -97,10 +97,13 @@ calling Claude again.
 
 1. **Opening (`/`).** The page types out the question from `config.json`,
    then "how important is it to you (1-10)?", then "can we get a peek? it'll
-   help us find it faster" with `[yes]` / `[no]`. Each question appears
-   once the last is answered, like a terminal session. `[yes]` asks for the
-   webcam and leaves it on (see The camera). `opening.jsx` saves
-   `{ answer, importance, peek, rooms: [] }` and goes to `/room/1`.
+   help us find it faster" with `[yes]` / `[no]`, then where they are, then
+   whether the house can look around for their things. Each question appears
+   once the last is answered, like a terminal session. Every permission the
+   visit uses is asked for here: the webcam (left on, see The camera),
+   location, and Bluetooth plus the microphone (see Outside the house).
+   `opening.jsx` saves `{ answer, importance, peek, where, nearby, rooms: [] }`
+   and goes to `/room/1`.
 2. **Entering a room (`/room/:n`).** `main.jsx` checks that rooms 1 to n−1
    exist and that the visitor chose an object in room n−1, otherwise it sends
    them back to `/`. It renders `<Room key={n}>`; the key gives every room a
@@ -298,7 +301,7 @@ requested twice; `npm start` requests each room once.
 
 ## Outside the house
 
-Four things reach past the page. None of them decay in the panel: the house
+Several things reach past the page. None of them decay in the panel: the house
 forgets the visitor, the browser doesn't.
 
 - **Location** (`location.js`). A fourth opening question asks for an exact
@@ -309,14 +312,29 @@ forgets the visitor, the browser doesn't.
   "Earth, probably". The meter shows it as `you are:`.
 - **The panel** (`exposed.jsx`, on every page). IP (`GET /api/whoami`), OS and
   browser from client hints, GPU, screen, cores, memory, battery, network,
-  time zone, languages, devices, permission states, cursor, location, face,
-  blinks (count, per minute, seconds since the last), how often the visitor
-  left the tab, and what they showed from the clipboard.
+  time zone, languages, permission states, cursor, location, face, blinks
+  (count, per minute, seconds since the last), how often the visitor left the
+  tab, what they showed from the clipboard, and their name once they've
+  answered to it. Device names aren't listed; the house asks about them.
+- **Names** (`owners.js`, `whoareyou.jsx`). A fifth opening question, "Is
+  anything of yours nearby? Let us look around.", asks for the rest up front.
+  `[yes]` opens the Web Bluetooth picker first (it only opens straight from
+  a click; Chrome and Edge only), saving the picked device's name as
+  `nearby`, then asks for the microphone and turns it off at once: nothing
+  is recorded, but every browser then shows its device labels. In the
+  house, `owner()` looks for an owner in `nearby` and every camera,
+  microphone and speaker label ("Jason's AirPods Pro", "Jason's iPhone
+  Camera" through Continuity Camera, "iPhone de Marie"), and the page
+  becomes "is your name jason?" in giant text. Yes: "we thought so." No:
+  "then whose iphone is this?". Once per name per tab, saved as `name` or
+  `notName`; checked on each room, when the camera comes on and on
+  `devicechange`, so AirPods connecting mid-visit get asked about too.
 - **Presence** (`presence.js`). MediaPipe's face landmarker runs on the
   webcam about 15 times a second, loaded from jsDelivr when the camera first
   comes on. It has to be that fast to land inside a blink; the face count and
   brackets are only published every 400 ms (or at once when they change).
-  Away 10 s: "where did you go?". Two faces: "who is that with you?", once.
+  Two faces: "who is that with you?", once. Looking away is the overlay's
+  job (see Not looking).
   Away 60 s: the camera turns off and the house forgets their face for the
   rest of the visit. The check-in window brackets every face it finds.
 - **Blinks.** The eyes count as shut when MediaPipe's `eyeBlinkLeft`/`Right`

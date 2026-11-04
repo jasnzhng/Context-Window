@@ -6,7 +6,7 @@
 // is looking at the screen (head not turned away, eyes not shut), and every
 // time they blink. If nobody is in front of the camera for FORGET_MS, the
 // house turns the camera off and forgets what the visitor looks like for the
-// rest of the visit. room.jsx reacts to shorter absences and to a second face;
+// rest of the visit. room.jsx reacts to a second face;
 // uninterested.jsx to looking away; glitch.js and the panel to blinks.
 import { getStream, onCamera, stopCamera } from "./camera.js";
 import { loadVisit, saveVisit } from "./visit.js";
@@ -20,7 +20,6 @@ const MODEL =
 // which is all the face brackets and the panel need.
 const EVERY_MS = 66;
 const PUBLISH_MS = 400;
-export const AWAY_MS = 10 * 1000;
 const FORGET_MS = 60 * 1000;
 
 // Eyes count as shut above CLOSED and open again below OPEN; the gap keeps

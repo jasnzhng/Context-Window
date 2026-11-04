@@ -302,19 +302,34 @@ input[type="number"] {
   }
 }
 
-/* Not looking at the screen: the page is replaced by one giant question, over
-   everything (the check-in too), until the visitor looks back. */
-.uninterested {
+/* The page replaced by one giant question. Not looking at the screen
+   (uninterested.jsx) sits over everything, the check-in and a device's
+   owner's name (whoareyou.jsx) included. */
+.uninterested,
+.whoareyou {
   position: fixed;
   inset: 0;
   z-index: 10;
   display: grid;
   place-items: center;
+  align-content: center;
+  gap: 2rem;
   padding: 16px;
   background: var(--bg);
 }
 
-.uninterested p {
+.whoareyou {
+  z-index: 9;
+}
+
+.whoareyou .choices,
+.whoareyou .giant + p {
+  margin: 0;
+  font-size: clamp(18px, 3vw, 32px);
+  text-align: center;
+}
+
+.giant {
   margin: 0;
   font-size: min(15vw, 24vh);
   font-weight: 700;

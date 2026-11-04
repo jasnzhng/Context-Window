@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Typewriter from "./typewriter";
 import CheckIn, { nextQuestion } from "./checkin";
@@ -6,7 +6,7 @@ import { forget, makeRoom } from "./decay";
 import { snapFrame } from "./camera";
 import { loadVisit, saveVisit } from "./visit";
 import { placeAt } from "./location.js";
-import { AWAY_MS, onPresence, getPresence } from "./presence.js";
+import { onPresence, getPresence } from "./presence.js";
 
 const pad = (n) => String(n).padStart(2, "0");
 
@@ -76,25 +76,12 @@ export default function Room({ n }) {
   const next = `/room/${n + 1}`;
   const close = () => setCheckIn(null);
 
-  // The house watches through the camera (presence.js). Gone for AWAY_MS, it
-  // asks where they went, once per absence; a second face, once per visit.
-  const askedAway = useRef(false);
+  // The house watches through the camera (presence.js). A second face, it
+  // asks about once per visit. Looking away is uninterested.jsx's.
   useEffect(() => {
     if (!room || checkIn) return;
     return onPresence(() => {
-      const { faces, awaySince } = getPresence();
-      if (faces) askedAway.current = false;
-      if (
-        faces === 0 &&
-        !askedAway.current &&
-        Date.now() - awaySince > AWAY_MS
-      ) {
-        askedAway.current = true;
-        setCheckIn({
-          question: "where did you go?",
-          choices: [{ label: "i'm here", onPick: close }],
-        });
-      } else if (faces > 1) {
+      if (getPresence().faces > 1) {
         const visit = loadVisit();
         if (visit.askedCompany) return;
         visit.askedCompany = true;

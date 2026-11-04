@@ -4,16 +4,22 @@ import Typewriter from "./typewriter";
 import { startCamera, stopCamera } from "./camera";
 import { saveVisit } from "./visit";
 import { locate } from "./location.js";
+import { lookAround } from "./owners.js";
 import config from "../config.json";
 
-// Four questions, one after another, like a terminal session: the answer,
-// how much it matters, whether we can turn the camera on, and where they are.
+// Five questions, one after another, like a terminal session: the answer,
+// how much it matters, whether we can turn the camera on, where they are, and
+// whether we can look around for their things. Every permission the visit
+// uses is asked for here, at the start.
 export default function Opening() {
   const navigate = useNavigate();
   const [answer, setAnswer] = useState(null);
   const [importance, setImportance] = useState(null);
   const [peek, setPeek] = useState(null);
   const [locating, setLocating] = useState(false);
+  const [shared, setShared] = useState(null); // their answer to location
+  const [where, setWhere] = useState(null);
+  const [looking, setLooking] = useState(false);
 
   // "yes" turns the webcam on (the browser asks first) and leaves it on for
   // the whole visit.
@@ -23,12 +29,21 @@ export default function Opening() {
     setPeek(yes);
   }
 
-  // A new answer starts a new walk through the house. "yes" asks the browser
-  // for an exact fix and looks up the street address before going in.
-  async function begin(share) {
+  // "yes" asks the browser for an exact fix and looks up the street address.
+  async function chooseWhere(share) {
     setLocating(share);
-    const where = share ? await locate() : null;
-    saveVisit({ answer, importance, peek, where, rooms: [] });
+    setWhere(share ? await locate() : null);
+    setLocating(false);
+    setShared(share);
+  }
+
+  // A new answer starts a new walk through the house. "yes" opens the
+  // Bluetooth picker and asks for the microphone (see owners.js), so the
+  // house can learn whose things are nearby, then goes in.
+  async function begin(look) {
+    setLooking(look);
+    const nearby = look ? await lookAround() : null;
+    saveVisit({ answer, importance, peek, where, nearby, rooms: [] });
     navigate("/room/1");
   }
 
@@ -76,6 +91,21 @@ export default function Opening() {
           {locating ? (
             <p className="status loading" aria-live="polite">
               locating
+            </p>
+          ) : shared === null ? (
+            <YesNo onAnswer={chooseWhere}></YesNo>
+          ) : (
+            <p className="echo">&gt; {shared ? "yes" : "no"}</p>
+          )}
+        </>
+      )}
+
+      {shared !== null && (
+        <>
+          <Typewriter text="Is anything of yours nearby? Let us look around."></Typewriter>
+          {looking ? (
+            <p className="status loading" aria-live="polite">
+              looking around
             </p>
           ) : (
             <YesNo onAnswer={begin}></YesNo>

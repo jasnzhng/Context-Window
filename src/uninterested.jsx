@@ -9,7 +9,7 @@ export default function Uninterested() {
   if (looking !== false) return null;
   return (
     <div className="uninterested" role="alert">
-      <p>are you not interested?</p>
+      <p className="giant">are you not interested?</p>
     </div>
   );
 }

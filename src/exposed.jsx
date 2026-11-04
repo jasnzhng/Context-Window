@@ -84,8 +84,8 @@ function browser(hints) {
   return ua;
 }
 
-// Answers that can change while the visitor watches: battery, devices,
-// permissions. Read again every few seconds.
+// Answers that can change while the visitor watches: battery and
+// permissions. (Device names aren't listed: whoareyou.jsx asks about them.) Read again every few seconds.
 async function changing() {
   const facts = {};
   try {
@@ -93,19 +93,6 @@ async function changing() {
     facts.battery = `${Math.round(b.level * 100)}%${b.charging ? ", charging" : ""}`;
   } catch {
     // Chromium only
-  }
-  try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const labels = devices
-      .filter((d) => d.kind === "videoinput" || d.kind === "audioinput")
-      .map((d) => d.label)
-      .filter(Boolean);
-    const count = (kind) => devices.filter((d) => d.kind === kind).length;
-    facts.devices =
-      labels.join(" / ") ||
-      `${count("videoinput")} cameras, ${count("audioinput")} microphones`;
-  } catch {
-    // no mediaDevices on an insecure origin
   }
   const asked = {};
   for (const name of ["camera", "microphone", "geolocation", "notifications"]) {
@@ -223,7 +210,6 @@ export default function Exposed() {
     ["cursor", cursor],
     ["this tab", `${history.length} pages deep`],
     ["came from", document.referrer || null],
-    ["devices", known.devices],
     ["permissions", known.permissions],
     [
       "location",
@@ -238,6 +224,12 @@ export default function Exposed() {
       absence.leaves ? `${absence.leaves}× for ${duration(away)}` : null,
     ],
     ["holding", visit?.carrying && `"${visit.carrying}"`],
+    [
+      "name",
+      visit?.name
+        ? `${visit.name} (you said so)`
+        : visit?.notName && `not ${visit.notName}?`,
+    ],
   ].filter(([, value]) => value);
 
   return (

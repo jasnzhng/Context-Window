@@ -17,6 +17,7 @@ import { forget } from "./decay.js";
 import { startGlitch } from "./glitch.js";
 import Exposed from "./exposed";
 import Uninterested from "./uninterested";
+import WhoAreYou from "./whoareyou";
 
 // A reload drops the webcam stream; turn it back on if the visitor said yes.
 if (loadVisit()?.peek) startCamera();
@@ -46,6 +47,7 @@ mountroot.render(
         <Route path="/room/:n" element={<RoomRoute></RoomRoute>}></Route>
       </Routes>
       <Exposed></Exposed>
+      <WhoAreYou></WhoAreYou>
       <Uninterested></Uninterested>
     </BrowserRouter>
   </StrictMode>,
