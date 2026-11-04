@@ -9,7 +9,6 @@ import {
 } from "react-router-dom";
 import Opening from "./opening";
 import Room from "./room";
-import Ending from "./ending";
 import { loadVisit } from "./visit";
 
 const mountroot = createRoot(document.getElementById("mountme"));
@@ -19,7 +18,6 @@ mountroot.render(
       <Routes>
         <Route path="/" element={<Opening></Opening>}></Route>
         <Route path="/room/:n" element={<RoomRoute></RoomRoute>}></Route>
-        <Route path="/end" element={<Ending></Ending>}></Route>
       </Routes>
     </BrowserRouter>
   </StrictMode>,
