@@ -2,6 +2,7 @@
 // never in the browser. Run with: npm start
 import Anthropic from "@anthropic-ai/sdk";
 import assert from "node:assert";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import express from "express";
 import { rateLimit } from "express-rate-limit";
@@ -241,6 +242,173 @@ app.get("/api/place", placeLimit, async (req, res) => {
   if (!address) return res.status(404).end();
   res.json({ ...address, display });
 });
+
+// ---- The class API ----------------------------------------------------------
+// A text-only Claude proxy for classmates whose sites are plain HTML/JS and
+// can't hold a key. Everyone shares one token (CLASS_TOKEN in .env), so the
+// real limits live here: the model is fixed, only text goes in, and output,
+// input, per-visitor rate and total daily calls are all capped. The spend limit
+// on the Console workspace is the final backstop. Sized from the room route:
+// its prompt is about 2.5k characters and its reply a few hundred tokens, so
+// these caps leave roughly 5x that on the way in and 2x on the way out.
+const CLASS_MODEL = "claude-haiku-5-5";
+const CLASS_DEFAULT_TOKENS = 512;
+const CLASS_MAX_TOKENS = 1024;
+const CLASS_MAX_MESSAGES = 20;
+const CLASS_MAX_CHARS = 12_000; // system prompt and every message together
+const CLASS_DAILY_CALLS = 1500; // across the whole class, resets at 00:00 UTC
+
+// Set CLASS_ANTHROPIC_API_KEY to bill a separate workspace key; otherwise the
+// site's own key pays.
+const classClient = process.env.CLASS_ANTHROPIC_API_KEY
+  ? new Anthropic({ apiKey: process.env.CLASS_ANTHROPIC_API_KEY })
+  : client;
+
+// The token travels in a header and there are no cookies, so any origin may
+// call this: student pages on localhost, file:// and github.io all have
+// different origins. Browsers send an OPTIONS preflight first because of the
+// Authorization header, so that is answered here before the token is checked.
+function classCors(req, res, next) {
+  res.set({
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    "Access-Control-Max-Age": "86400",
+  });
+  if (req.method === "OPTIONS") return res.status(204).end();
+  next();
+}
+
+// Compared as hashes so the check takes the same time wherever the guess
+// first goes wrong. If CLASS_TOKEN is unset the route is off, not open.
+const digest = (text) => createHash("sha256").update(text).digest();
+function classAuth(req, res, next) {
+  const expected = process.env.CLASS_TOKEN;
+  if (!expected)
+    return res.status(503).json({ error: "The class API is off." });
+  const given = (req.headers.authorization ?? "").replace(/^Bearer /i, "");
+  if (!timingSafeEqual(digest(given), digest(expected))) {
+    return res.status(401).json({ error: "Wrong or missing token." });
+  }
+  next();
+}
+
+// Per visitor, and counted before the token check so guessing it is slow too.
+const classLimit = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 30,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  skip: (req) => req.method === "OPTIONS",
+  message: { error: "Too many requests. Wait a few minutes." },
+});
+
+// The same for everyone. In memory, so a restart resets it; that is fine
+// because the Console spend limit is what really stops the money. The check
+// runs before the request is read; the handler adds to the count only once a
+// request is valid, so a student's typos don't use up the class's calls.
+let today = { date: "", calls: 0 };
+function classDaily(req, res, next) {
+  const date = new Date().toISOString().slice(0, 10);
+  if (today.date !== date) today = { date, calls: 0 };
+  if (today.calls >= CLASS_DAILY_CALLS) {
+    return res
+      .status(429)
+      .json({ error: "The class has used today's calls. Try tomorrow." });
+  }
+  next();
+}
+
+// Builds the request from an allowlist of fields. Anything else the browser
+// sends (model, tools, images, stream...) is never looked at, so it can't
+// reach the API.
+function classRequest(body) {
+  const { messages, system, max_tokens: maxTokens, temperature } = body ?? {};
+  const fail = (error) =>
+    Object.assign(new Error(error), { status: 400, expose: true });
+
+  if (!Array.isArray(messages) || !messages.length) {
+    throw fail("messages must be a non-empty array.");
+  }
+  if (messages.length > CLASS_MAX_MESSAGES) {
+    throw fail(`At most ${CLASS_MAX_MESSAGES} messages.`);
+  }
+  for (const m of messages) {
+    const ok =
+      (m?.role === "user" || m?.role === "assistant") &&
+      typeof m.content === "string" &&
+      m.content.trim();
+    if (!ok) {
+      throw fail(
+        "Each message needs a role (user or assistant) and text content.",
+      );
+    }
+  }
+  if (messages.at(-1).role !== "user") {
+    throw fail("The last message must be from the user.");
+  }
+  if (system !== undefined && typeof system !== "string") {
+    throw fail("system must be a string.");
+  }
+  const chars =
+    (system?.length ?? 0) + messages.reduce((n, m) => n + m.content.length, 0);
+  if (chars > CLASS_MAX_CHARS) {
+    throw fail(
+      `Too long: ${chars} characters, the limit is ${CLASS_MAX_CHARS}.`,
+    );
+  }
+
+  const request = {
+    model: CLASS_MODEL,
+    max_tokens: Math.min(
+      Number.isInteger(maxTokens) && maxTokens > 0
+        ? maxTokens
+        : CLASS_DEFAULT_TOKENS,
+      CLASS_MAX_TOKENS,
+    ),
+    messages: messages.map(({ role, content }) => ({ role, content })),
+  };
+  if (system) request.system = system;
+  if (typeof temperature === "number" && temperature >= 0 && temperature <= 1) {
+    request.temperature = temperature;
+  }
+  return request;
+}
+
+app.options("/api/digital355", classCors);
+app.post(
+  "/api/digital355",
+  classCors,
+  classLimit,
+  classAuth,
+  classDaily,
+  express.json({ limit: "64kb" }),
+  async (req, res) => {
+    const request = classRequest(req.body);
+    today.calls++;
+    const message = await classClient.messages.create(request);
+    const text = message.content
+      .filter((block) => block.type === "text")
+      .map((block) => block.text)
+      .join("");
+    // Only a count: what students ask is theirs, and this site keeps none of it.
+    console.log(`class call ${today.calls}/${CLASS_DAILY_CALLS}`);
+    res.json({ text, stop_reason: message.stop_reason });
+  },
+  // Answers in JSON, with the CORS headers set above, instead of Express's
+  // HTML error page, which a student's fetch() can't make sense of.
+  (error, req, res, next) => {
+    if (res.headersSent) return next(error);
+    // `expose` marks errors that are the student's to read: ours below and
+    // the body parser's (bad JSON, body too large). Anything else, such as
+    // an upstream billing or key error, is logged here and hidden from them.
+    if (error.expose) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    console.error("class call failed:", error.status, error.message);
+    res.status(502).json({ error: "The model call failed. Try again." });
+  },
+);
 
 app.use(express.static("public"));
 
