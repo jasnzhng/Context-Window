@@ -314,7 +314,7 @@ function classDaily(req, res, next) {
   if (today.calls >= CLASS_DAILY_CALLS) {
     return res
       .status(429)
-      .json({ error: "The class has used today's calls. Try tomorrow." });
+      .json({ error: "Too many requests today. Try tomorrow." });
   }
   next();
 }
