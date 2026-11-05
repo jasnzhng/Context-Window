@@ -12,9 +12,14 @@ const config = JSON.parse(readFileSync("config.json", "utf8"));
 const client = new Anthropic(); // reads ANTHROPIC_API_KEY from .env
 const app = express();
 
-// Hosts like Render sit behind one proxy hop. Trusting it lets req.ip be the
-// visitor's address, not the proxy's, so the limit below is per visitor.
-app.set("trust proxy", 1);
+// On Render there are two proxies between the visitor and this server, and
+// each adds an address to X-Forwarded-For. Trusting that many hops makes req.ip
+// the visitor's address, so the limits below are per visitor. With too few,
+// req.ip is one of Render's internal 10.x addresses and every visitor shares a
+// bucket; with too many, it is whatever the visitor typed into the header, and
+// the limits can be dodged. After changing this, open /api/whoami from a known
+// address to check. TRUST_PROXY overrides the count without a code change.
+app.set("trust proxy", Number(process.env.TRUST_PROXY ?? 2));
 
 // Every room costs a Claude call, so cap how fast one visitor can spend them.
 // 40 rooms in 10 minutes is far more than anyone reads; a script hits it fast.
