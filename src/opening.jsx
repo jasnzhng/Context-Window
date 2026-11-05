@@ -126,7 +126,7 @@ export default function Opening() {
 
       {peek !== null && (
         <>
-          <Typewriter text="Where are you right now? We'll start looking there."></Typewriter>
+          <Typewriter text="Can we start looking where you are? It'll help a lot."></Typewriter>
           {locating ? (
             <p className="status loading" aria-live="polite">
               locating
@@ -156,7 +156,7 @@ export default function Opening() {
 
       {nearby !== undefined && (
         <>
-          <Typewriter text="Can we listen while you walk? We'll write down what you say, on this device."></Typewriter>
+          <Typewriter text="Can we listen in while you look?"></Typewriter>
           {preparing ? (
             <p className="status loading" aria-live="polite">
               getting ready to listen
@@ -176,7 +176,7 @@ function Notice({ onAgree }) {
   return (
     <section className="notice" aria-label="privacy notice">
       <p>
-        This is an artwork. The house builds itself around you, and the more you
+        This is a net art project. The house builds itself around you, and the more you
         let it see and hear, the more it can use. It only uses what you say yes
         to. Every question that follows can be answered no, and you can still
         walk through.
@@ -192,8 +192,7 @@ function Notice({ onAgree }) {
           the address, and the address to Claude to shape the rooms.
         </li>
         <li>
-          <b>Nearby devices.</b> Device names (like &ldquo;Jason&apos;s
-          iPhone&rdquo;) are read in your browser and never uploaded.
+          <b>Nearby devices.</b> Device names are read in your browser and never uploaded.
         </li>
         <li>
           <b>Microphone.</b> If you let the house listen, what you say is
@@ -206,11 +205,11 @@ function Notice({ onAgree }) {
         </li>
         <li>
           <b>Clipboard.</b> Only if you choose to show it, and then it&apos;s
-          sent to Claude as an object in a room.
+          sent to Claude to shape the rooms.
         </li>
       </ul>
       <p>
-        All of it is used only for this artwork. This site doesn&apos;t save any
+        All of it is used only for this project. This site doesn&apos;t save any
         of it: no accounts, no recordings, no transcripts, no logs of what you
         said. Closing the tab forgets everything. If anyone else is in the room
         with you, let them know the house can hear them too.
