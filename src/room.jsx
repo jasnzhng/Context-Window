@@ -86,14 +86,17 @@ export default function Room({ n }) {
   const next = `/room/${n + 1}`;
   const close = () => setCheckIn(null);
 
-  // The house watches through the camera (presence.js). A second face, it
-  // asks about once per visit. Looking away is uninterested.jsx's.
+  // The house watches through the camera (presence.js). The moment a second
+  // face shows up, once the first room exists (even while a later room is
+  // still loading), it asks about them. Once per visit, never again. It waits
+  // for any other check-in to finish rather than cutting it off. Looking away
+  // is uninterested.jsx's.
   useEffect(() => {
-    if (!room || checkIn) return;
+    if (checkIn) return;
     return onPresence(() => {
       if (getPresence().faces > 1) {
         const visit = loadVisit();
-        if (visit.askedCompany) return;
+        if (!visit.rooms[0] || visit.askedCompany) return;
         visit.askedCompany = true;
         saveVisit(visit);
         setCheckIn({
@@ -105,7 +108,7 @@ export default function Room({ n }) {
         });
       }
     });
-  }, [room, checkIn]);
+  }, [checkIn]);
 
   // Asked once, at the first check-in: what's on their clipboard. Whatever
   // they show becomes an object in the next room.
@@ -147,23 +150,29 @@ export default function Room({ n }) {
 
     visit.rooms = visit.rooms.slice(0, n);
     visit.rooms[n - 1].chosen = selected;
-    // The chance starts at 30% one room after the last check-in and climbs
-    // 20% for every room without one, so it's certain by the fifth.
+    // The chance starts at 60% one room after the last check-in and climbs
+    // 20% for every room without one, so it's certain by the fourth. Often
+    // enough that a visitor who gives up around room 10 has met them all.
     const since = n - (visit.lastCheckIn ?? 0);
-    const due = since >= 2 && Math.random() < 0.3 + 0.2 * (since - 2);
+    const due = since >= 2 && Math.random() < 0.6 + 0.2 * (since - 2);
     const clipboard = due && !visit.askedClipboard && navigator.clipboard;
     // Any other check-in is drawn at random from the ones that can happen
     // right now: the webcam always; the transcript only with a snippet long
     // enough to quote; the name only with an owner not yet asked about.
+    // Kinds not yet asked this visit come first, so none repeats until every
+    // one that can happen has been asked.
     const quote = snippet();
     const who = unasked(found);
     const kinds = ["webcam"];
     if (quote) kinds.push("transcript");
     if (who) kinds.push("name");
+    const fresh = kinds.filter((k) => !visit.askedKinds?.includes(k));
+    const pool = fresh.length ? fresh : kinds;
     const kind =
-      due && !clipboard
-        ? kinds[Math.floor(Math.random() * kinds.length)]
-        : null;
+      due && !clipboard ? pool[Math.floor(Math.random() * pool.length)] : null;
+    if (kind && !visit.askedKinds?.includes(kind)) {
+      visit.askedKinds = [...(visit.askedKinds ?? []), kind];
+    }
     const question = kind === "webcam" ? nextQuestion(visit) : null;
     if (due) visit.lastCheckIn = n;
     if (clipboard) visit.askedClipboard = true;
@@ -268,13 +277,6 @@ export default function Room({ n }) {
               </button>
             </div>
           )}
-          {checkIn?.kind === "transcript" ? (
-            <TranscriptCheckIn {...checkIn}></TranscriptCheckIn>
-          ) : checkIn?.kind === "name" ? (
-            <NameCheckIn {...checkIn}></NameCheckIn>
-          ) : (
-            checkIn && <CheckIn key={checkIn.question} {...checkIn}></CheckIn>
-          )}
           <footer>
             <Link to={back}>cd ..</Link>
             {room.cameThrough && (
@@ -282,6 +284,14 @@ export default function Room({ n }) {
             )}
           </footer>
         </>
+      )}
+      {/* Outside the room, so a check-in can appear while one is loading. */}
+      {checkIn?.kind === "transcript" ? (
+        <TranscriptCheckIn {...checkIn}></TranscriptCheckIn>
+      ) : checkIn?.kind === "name" ? (
+        <NameCheckIn {...checkIn}></NameCheckIn>
+      ) : (
+        checkIn && <CheckIn key={checkIn.question} {...checkIn}></CheckIn>
       )}
     </main>
   );

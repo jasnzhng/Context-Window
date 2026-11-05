@@ -261,11 +261,13 @@ Saying no on a new visit turns off a camera left on by an earlier one.
 
 **Check-ins.** When `[go further]` is about to generate a new room, the house
 may pause first. It never happens two rooms in a row or after room 1. After
-that the chance starts at 30% and climbs by 20% for every room without a
-check-in (30%, 50%, 70%, 90%, then certain), and resets after each one. So
-there's one at least every five rooms, and usually every two or three. The
+that the chance starts at 60% and climbs by 20% for every room without a
+check-in (60%, 80%, then certain), and resets after each one. So
+there's one at least every four rooms, and usually every two or three. The
 very first one asks for the clipboard (see Outside the house). After that,
-each check-in is drawn at random from the kinds that can happen right now:
+each check-in is drawn at random from the kinds that can happen right now
+and haven't been asked yet this visit (`askedKinds` in the visit; once every
+available kind has been asked, any can repeat):
 the webcam one always; the transcript one ("what did you mean by that?")
 only if the house is listening and has heard a phrase of at least five
 words to quote; the name one ("is your name jason?") only if a nearby
@@ -371,13 +373,15 @@ forgets the visitor, the browser doesn't.
   webcam about 15 times a second, loaded from jsDelivr when the camera first
   comes on. It has to be that fast to land inside a blink; the face count and
   brackets are only published every 400 ms (or at once when they change).
-  Two faces: "who is that with you?", once. Looking away is the overlay's
+  Two faces: "who is that with you?", the moment a second face appears once
+  room 1 exists (even while a later room is loading), then never again
+  (`askedCompany`). It waits for any other check-in to finish. Looking away is the overlay's
   job (see Not looking).
   Away 60 s: the camera turns off and the house forgets their face for the
   rest of the visit. The check-in window brackets every face it finds.
 - **Blinks.** The eyes count as shut when MediaPipe's `eyeBlinkLeft`/`Right`
   blendshapes average over 0.5, and open again under 0.3. Each blink,
-  `glitch.js` swaps about 4% of the page's visible characters (at least 6)
+  `glitch.js` swaps about 15% of the page's visible characters (at least 6)
   for random ones for 420 ms, long enough to still be there when the eyes
   open. React owns that text, so a character is only put back if its node
   still holds the swapped text; if React rewrote it meanwhile (the

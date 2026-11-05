@@ -7,7 +7,7 @@
 // If React changed it in the meantime, React's version wins.
 import { onBlink } from "./presence.js";
 
-const SHARE = 0.04; // of the visible characters, per blink
+const SHARE = 0.15; // of the visible characters, per blink
 const MIN = 6;
 const HOLD_MS = 420;
 const GLYPHS = [
