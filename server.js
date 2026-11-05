@@ -12,14 +12,16 @@ const config = JSON.parse(readFileSync("config.json", "utf8"));
 const client = new Anthropic(); // reads ANTHROPIC_API_KEY from .env
 const app = express();
 
-// On Render there are two proxies between the visitor and this server, and
-// each adds an address to X-Forwarded-For. Trusting that many hops makes req.ip
-// the visitor's address, so the limits below are per visitor. With too few,
-// req.ip is one of Render's internal 10.x addresses and every visitor shares a
-// bucket; with too many, it is whatever the visitor typed into the header, and
-// the limits can be dodged. After changing this, open /api/whoami from a known
-// address to check. TRUST_PROXY overrides the count without a code change.
-app.set("trust proxy", Number(process.env.TRUST_PROXY ?? 2));
+// On Render there are three proxies between the visitor and this server (its
+// own two, with Cloudflare between them), and each adds an address to
+// X-Forwarded-For. Trusting that many hops makes req.ip the visitor's address,
+// so the limits below are per visitor. With too few, req.ip is a Cloudflare
+// edge (2) or one of Render's internal 10.x addresses (1), and visitors are
+// spread over or lumped into buckets that have nothing to do with them; with
+// too many, it is whatever the visitor typed into the header, and the limits
+// can be dodged. After changing this, open /api/whoami from a known address to
+// check. TRUST_PROXY overrides the count without a code change.
+app.set("trust proxy", Number(process.env.TRUST_PROXY ?? 3));
 
 // Every room costs a Claude call, so cap how fast one visitor can spend them.
 // 40 rooms in 10 minutes is far more than anyone reads; a script hits it fast.
@@ -298,14 +300,18 @@ function classAuth(req, res, next) {
   next();
 }
 
-// Per visitor, and counted before the token check so guessing it is slow too.
+// One bucket for the whole class, not one per visitor: behind Render's proxies
+// the server can't tell visitors apart reliably, and the token is long enough
+// that guessing it isn't a worry. This only stops a runaway loop from burning
+// the daily calls in seconds; the window is short so everyone recovers quickly.
 const classLimit = rateLimit({
-  windowMs: 10 * 60 * 1000,
-  limit: 30,
+  windowMs: 60 * 1000,
+  limit: 60,
+  keyGenerator: () => "class",
   standardHeaders: "draft-8",
   legacyHeaders: false,
   skip: (req) => req.method === "OPTIONS",
-  message: { error: "Too many requests. Wait a few minutes." },
+  message: { error: "The class is sending a lot right now. Wait a minute." },
 });
 
 // The same for everyone. In memory, so a restart resets it; that is fine
