@@ -170,7 +170,10 @@ export default function Exposed() {
     refresh();
     const slow = setInterval(refresh, 5000);
     const fast = setInterval(() => setNow(Date.now()), 1000);
-    const move = (e) => setCursor(`${e.clientX}, ${e.clientY}`);
+    // Whole pixels: pointer coordinates can be fractional (hi-DPI, zoom), and
+    // a long, changing string wraps the row and shoves the rows below it.
+    const move = (e) =>
+      setCursor(`${Math.round(e.clientX)}, ${Math.round(e.clientY)}`);
     window.addEventListener("pointermove", move);
     return () => {
       live = false;

@@ -34,11 +34,34 @@ function textNodes(root) {
   return nodes;
 }
 
+// Nodes currently showing swapped text: node -> { original, shown, timer }.
+// Blinks can land closer together than HOLD_MS, so a second blink may pick a
+// node that is still scrambled. Its "original" must be the first blink's
+// original, not the scrambled text, or the node is never put back.
+const held = new Map();
+
+// What the node would read if no blink were holding it. If the text no longer
+// matches what we swapped in, React rewrote it and its version is the truth.
+function baseText(node) {
+  const h = held.get(node);
+  return h && node.nodeValue === h.shown ? h.original : node.nodeValue;
+}
+
+function release(node) {
+  const h = held.get(node);
+  if (!h) return;
+  held.delete(node);
+  if (node.isConnected && node.nodeValue === h.shown) {
+    node.nodeValue = h.original;
+  }
+}
+
 function scramble(root) {
   // Every swappable character, as [node, index].
   const spots = [];
   for (const node of textNodes(root)) {
-    [...node.nodeValue].forEach((ch, i) => {
+    const text = baseText(node);
+    [...text].forEach((ch, i) => {
       if (ch.trim()) spots.push([node, i]);
     });
   }
@@ -53,9 +76,9 @@ function scramble(root) {
     chosen.get(node).add(i);
   }
 
-  const swapped = [];
   for (const [node, indices] of chosen) {
-    const original = node.nodeValue;
+    const original = baseText(node);
+    clearTimeout(held.get(node)?.timer);
     const chars = [...original];
     for (const i of indices) {
       let glyph = pick(GLYPHS);
@@ -63,16 +86,12 @@ function scramble(root) {
       chars[i] = glyph;
     }
     node.nodeValue = chars.join("");
-    swapped.push({ node, original, shown: node.nodeValue });
+    held.set(node, {
+      original,
+      shown: node.nodeValue,
+      timer: setTimeout(() => release(node), HOLD_MS),
+    });
   }
-
-  setTimeout(() => {
-    for (const { node, original, shown } of swapped) {
-      if (node.isConnected && node.nodeValue === shown) {
-        node.nodeValue = original;
-      }
-    }
-  }, HOLD_MS);
 }
 
 // Called once, from main.jsx. Nothing happens without a camera, and nothing

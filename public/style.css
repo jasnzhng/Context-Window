@@ -249,15 +249,30 @@ input[type="number"] {
   color: var(--dim);
 }
 
-@media (min-width: 1180px) {
+/* Wide enough that the rows that change every second (time, blinks, mic,
+   cursor) fit on one line: 11ch label + gap + the longest of them, the time
+   with its zone name. If they wrapped, the rows below would jump. */
+@media (min-width: 1320px) {
   .exposed {
     position: fixed;
-    top: 10vh;
+    top: 16px;
     right: 24px;
-    width: 34ch;
-    max-height: 80vh;
+    width: 48ch;
+    max-height: calc(100dvh - 32px);
     margin: 0;
     overflow-y: auto;
+    /* Keep room for the scrollbar always, so one appearing as rows arrive
+       doesn't narrow the column and re-wrap everything. */
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+  }
+}
+
+/* On short windows, tighten the type so the whole readout still fits. */
+@media (min-width: 1320px) and (max-height: 800px) {
+  .exposed {
+    font-size: 11px;
+    line-height: 1.35;
   }
 }
 
