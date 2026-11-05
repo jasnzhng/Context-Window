@@ -375,7 +375,10 @@ forgets the visitor, the browser doesn't.
   brackets are only published every 400 ms (or at once when they change).
   Two faces: "who is that with you?", the moment a second face appears once
   room 1 exists (even while a later room is loading), then never again
-  (`askedCompany`). It waits for any other check-in to finish. Looking away is the overlay's
+  (`askedCompany`). It waits for any other check-in to finish. `[a friend]`
+  goes on to "what's their name?" (typed, or `[i don't know]`), "do you trust
+  them?" and "are you sure?" (`askAboutFriend` in `checkin.jsx`); every answer
+  is allowed and none is kept. Looking away is the overlay's
   job (see Not looking).
   Away 60 s: the camera turns off and the house forgets their face for the
   rest of the visit. The check-in window brackets every face it finds.

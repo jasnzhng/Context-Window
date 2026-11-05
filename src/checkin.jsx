@@ -1,4 +1,4 @@
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Typewriter from "./typewriter";
 import { getStream, onCamera, startCamera } from "./camera.js";
 import { getPresence, onPresence } from "./presence.js";
@@ -26,6 +26,34 @@ export function nextQuestion(visit) {
   return visit.questions.pop();
 }
 
+// What follows "a friend" at "who is that with you?": a run of check-ins, each
+// replacing the last: their name, whether the visitor trusts them, and
+// whether they're sure. Nothing they answer is kept; the house just asks.
+// `setCheckIn` is the room's; the last answer closes the window.
+export function askAboutFriend(setCheckIn) {
+  const close = () => setCheckIn(null);
+  const sure = () =>
+    setCheckIn({
+      question: "are you sure?",
+      choices: [
+        { label: "yes", onPick: close },
+        { label: "no", onPick: close },
+      ],
+    });
+  const trust = () =>
+    setCheckIn({
+      question: "do you trust them?",
+      choices: [
+        { label: "yes", onPick: sure },
+        { label: "no", onPick: sure },
+      ],
+    });
+  setCheckIn({
+    question: "what's their name?",
+    field: { label: "their name", skip: "i don't know", onSubmit: trust },
+  });
+}
+
 // The webcam frame is 4:3 with object-fit: cover and mirrored, so a face box
 // (as fractions of the camera's own frame) has to be cropped and flipped the
 // same way to land on the face.
@@ -50,9 +78,13 @@ function place(box, aspect) {
 
 // A window with the visitor's own webcam feed, a bracket around every face
 // in it, and a question. `choices` are the buttons; `reply`, once set, is the
-// house's answer, typed under the question. Without a camera it shows
-// "no signal", or, once the house has given up on them, that it forgot.
-export default function CheckIn({ question, choices, reply }) {
+// house's answer, typed under the question. Or, instead of buttons, `field`
+// is a line to type an answer on: { label, skip, onSubmit(answer) }, where
+// `skip` is the button to say nothing and the answer is null if they do.
+// Without a camera it shows "no signal", or, once the house has given up on
+// them, that it forgot.
+export default function CheckIn({ question, choices, reply, field }) {
+  const [typed, setTyped] = useState("");
   const video = useRef(null);
   const stream = useSyncExternalStore(onCamera, getStream);
   const { boxes, aspect } = useSyncExternalStore(onPresence, getPresence);
@@ -102,6 +134,34 @@ export default function CheckIn({ question, choices, reply }) {
         <Typewriter text={question}></Typewriter>
         {reply ? (
           <Typewriter text={reply}></Typewriter>
+        ) : field ? (
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              field.onSubmit(typed.trim() || null);
+            }}
+          >
+            &gt;{" "}
+            <input
+              className="meant"
+              value={typed}
+              onChange={(event) => setTyped(event.target.value)}
+              ref={(el) => el?.focus()}
+              maxLength={60}
+              autoComplete="off"
+              aria-label={field.label}
+            />
+            <p>
+              <button className="obj">[enter]</button>{" "}
+              <button
+                type="button"
+                className="obj"
+                onClick={() => field.onSubmit(null)}
+              >
+                [{field.skip}]
+              </button>
+            </p>
+          </form>
         ) : (
           <p>
             &gt;{" "}

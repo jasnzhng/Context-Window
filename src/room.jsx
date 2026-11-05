@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Typewriter from "./typewriter";
-import CheckIn, { nextQuestion } from "./checkin";
+import CheckIn, { askAboutFriend, nextQuestion } from "./checkin";
 import { forget, makeRoom } from "./decay";
 import { snapFrame } from "./camera";
 import { loadVisit, saveVisit } from "./visit";
@@ -103,7 +103,7 @@ export default function Room({ n }) {
           question: "who is that with you?",
           choices: [
             { label: "no one", onPick: close },
-            { label: "a friend", onPick: close },
+            { label: "a friend", onPick: () => askAboutFriend(setCheckIn) },
           ],
         });
       }
